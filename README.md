@@ -27,7 +27,7 @@ download the jar file and copy into plugin Folder of ImageJ
 
 run >Plugin>MiC>Mask instant Comparator
 
-![MiC, dialog window](MiC_Dialog.png)
+![MiC, dialog window](ressources/MiC_Dialog.png)
 
 ### parameters
 
@@ -63,7 +63,7 @@ Selection of filters on objects to remove objects touching border of image or sm
 
 Once the program ends the computation, several ouputs are displayed.
 
-![MiC, outputs](MiC_results_screenshot.png)
+![MiC, outputs](ressources/MiC_results_screenshot.png)
 
 Depending on the choice of parameters, the outputs consists of 
 + one stack of superimposed masks
@@ -80,7 +80,7 @@ Depending on the choice of parameters, the outputs consists of
 
 ### image
 
-![MiC, output image](MiC_output_image.png)
+![MiC, output image](ressources/MiC_output_image.png)
 The mask to test is superimposed to the ground truth with a color code
 + for pixel level
 	* Green for GT (FN)
