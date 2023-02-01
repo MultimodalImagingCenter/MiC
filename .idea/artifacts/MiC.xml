@@ -1,0 +1,8 @@
+<component name="ArtifactManager">
+  <artifact type="jar" build-on-make="true" name="MiC">
+    <output-path>$PROJECT_DIR$/../../../applications/Fiji.app/plugins</output-path>
+    <root id="archive" name="MiC.jar">
+      <element id="module-output" name="Mask-Comparator" />
+    </root>
+  </artifact>
+</component>
