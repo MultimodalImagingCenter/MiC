@@ -29,7 +29,7 @@ run >Plugin>MiC>Mask instant Comparator
 
 ![MiC, dialog window](ressources/MiC_Dialog.png)
 
-### parameters
+### Parameters
 
 Selection of images to work with 
 + Truth mask image
@@ -59,7 +59,7 @@ Selection of filters on objects to remove objects touching border of image or sm
 + Minimum size for particles (pixels)
 
 
-### outputs description
+### Outputs description
 
 Once the program ends the computation, several ouputs are displayed.
 
@@ -76,11 +76,11 @@ Depending on the choice of parameters, the outputs consists of
 	- one containing counts with varying IoU
 	- one containing information about correspondence found with notably the IoU for each object
 
-## Interpretation of results
-
-### image
+#### image: display of masks GT_VS_mask
 
 ![MiC, output image](ressources/MiC_output_image.png)
+This stack of images is displayed when the option "Show composite images" is selected. The first slice is the pixel level superposition is the option "Pixel" is selected. The second is the Object level (IoU = 0.5) superposition if the option "Object (IoU=0.5)" is selected. The next slices corresponds to object level  with varying IoU thresholds, when the corresponding option is selected. The IoU thresholds used are displayed in the slice label.
+
 The mask to test is superimposed to the ground truth with a color code
 + for pixel level
 	* Green for GT (FN)
@@ -95,13 +95,53 @@ The mask to test is superimposed to the ground truth with a color code
 	* Cyan for objects with IoU lower than threshold 
 	* Orange for fused objects
 	* Gray for objects eliminated with respect of distance to border parameter 
+	
+___Warning!___  
+Take care specially when using the option "Object (varying IoU)", the number of image can be quite high depending on the number of slices and the number of thresholds tested (defined using minimum, maximum and increment). As it is a composite image 4 images are created for each test (green for GT, red for TP in mask, blue for FN in mask and gray for non valid objects), the memory usage is high. 
 
-### result window 1
+#### result window 1: Mask comparison results
 
-### result window 2
+This result table displays for each slice 
++ the information of images and slice compared
++ the parameters of distance to border and minimum size of objects
++ the number of objects in each compared images
++ for Pixel level
+	* the number of pixels that are considered as TP, FP and FN
+	* the 4 metrics
++ for object level (IoU = 0.5)
+	* the number of objects that are considered as TP, FP and FN
+	* the 4 metrics
 
-### result window 3
+#### result window 2: Mask comparison with IoU thresholds
 
+This result table displays only when using varying IoU threshold option. It shows for each slice and each threshold tested a line containing:
++ the information of images and slice compared
++ the number of objects in each compared images
++ the IoU threshold used
++ the number of objects that are considered as TP, FP and FN
++ the 4 metrics
+
+#### result window 3: Objects correspondences
+
+This result table displays when the option "show GT objects correspondence table" is selected. It is associated with the ROIManager. It shows for each slice and for each object in ground truth mask a line containing:
++ the information of image and slice (the slice number is concatenated to image name after an underscore)
++ the object index in the ROIManager
++ the object's center coordinates
++ the distance of this object's center to border
++ a flag to tell is the distance of object to border makes it valid for analysis (1 = OK, 0 = removed from analysis)
++ the corresponding object index found
++ the IoU value between these two objects (if several objects overlap the GT object only the one with higher IoU is kept)
+
+The ROI manager is also displayed with all ROIs from GT.
+
+#### plot window 1: plots GT_VS_mask
+
+This image stack displays when using the option "Object (varying IoU)" and the option "show graphs (varying IoU)". It shows, for each slice, the plot of the 4 metrics with the varying IoU thresholds.
+
+#### plot window 2: plots summing all objects from stack
+
+This plot window displays when using the option "Object (varying IoU)" and the option "show summary graph (varying IoU)". It computes the sums of objects in all slices in each category (TP, FP, FN) and then calculates the 4 metrics with these sums. The plot shows the 4 metrics with the varying IoU thresholds.  
+Using the List button the values of the metrics can be recovered directly in a table that can be exported.
 
 ## Licensing
 
