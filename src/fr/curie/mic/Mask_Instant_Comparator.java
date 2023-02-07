@@ -709,7 +709,16 @@ public class Mask_Instant_Comparator implements PlugIn {
         plot.addLegend(labels);
         plot.setLimits(thresholds[0], thresholds[thresholds.length-1],0, 1.1);
         PlotWindow pw = plot.show();
+
+        ResultsTable rt=new ResultsTable();
+        for(int i=0;i< thresholds.length;i++){
+            if(i!=0)rt.incrementCounter();
+            addToResultTable(rt,"Object", tps[i],fps[i],fns[i],precision[i],sensitivity[i],jaccard[i], fmeasure[i],thresholds[i]);
+        }
+        rt.show(testMaskIP.getTitle()+" sum of all objects");
+
     }
+
 
     private void computeStats(double[] tps, double[] fps, double[] fns, double[] precision, double[] sensitivity, double[] jaccardIndex, double[] fmeasure){
         for(int index=0;index<tps.length; index++){
