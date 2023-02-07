@@ -990,6 +990,8 @@ public class Mask_Instant_Comparator implements PlugIn {
         //if (!truthRoiTemp.equals("")) setRois(truthRoiTemp, true);
         //if (!testRoiTemp.equals("")) setRois(testRoiTemp, false);
         if (showComposite && truthMaskIP.getNSlices()==testMaskIP.getNSlices()) createCompositeStack();
+
+        if(!truthMaskIP.isStack() || !testMaskIP.isStack()) showSummary=false;
     }
 
     public void saveResults(String path){
