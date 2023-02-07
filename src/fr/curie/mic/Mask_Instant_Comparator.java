@@ -1023,7 +1023,7 @@ public class Mask_Instant_Comparator implements PlugIn {
 //        Methods
         gd.addCheckboxGroup(1, 3, new String[]{"Pixel", "Object_(IoU=0.5)", "Object_(varying_IoU)"}, new boolean[]{true, true, true});
         gd.addNumericField("Minimum IoU threshold (0-1)", 0.5,2);
-        gd.addNumericField("Maximum IoU threshold (0-1)", 0.95,2);
+        gd.addNumericField("Maximum IoU threshold (0-1)", 1.0,2);
         gd.addNumericField("Increment of IoU threshold (0-1)", 0.05,2);
 
 //        Additional choices
