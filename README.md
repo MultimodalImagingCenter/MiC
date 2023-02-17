@@ -1,8 +1,8 @@
-# Mask instant Comparator (MiC)
+# Mask instant Comparator (MiC) <img src="ressources/logoMiC.png" width="100" >
 
 ## About
 
-MiC is an ImageJ plugin to compare segmentation masks.  
+MiC is an ImageJ plugin to compare segmentation masks. 
 - It computes the number of **true positive (TP)**, **false positives (FP)** and **false negatives (FN)**
 	+ at pixel level 
 	+ at object level with an overlap (or intersection over union  - IoU) of 0.5
