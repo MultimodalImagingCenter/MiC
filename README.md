@@ -11,7 +11,7 @@ MiC is an ImageJ plugin to compare segmentation masks.
 	+ **Precision** defined as $\frac{TP}{TP + FP}$
 	+ **Recall** (or sensitivity) defined as $\frac{TP}{TP + FN}$
 	+ **Jaccard index** (or global perecision) defined as $\frac{TP}{TP + FP + FN}$
-	+ **F-measure** (or Sorensen Dice Coefficient - DSC) defined as $\frac{2TP}{2TP + FP + FN}$
+	+ **F1-measure** (or Sorensen Dice Coefficient - DSC) defined as $\frac{2TP}{2TP + FP + FN}$
 - It displays the **superposition of the two masks** with the ground truth in green and the mask to evaluate in red for pixel level, for Object level the truth is in green, the mask to evaluate in red, TP are thus yellow, FP blue, FN dark green. 
 - It displays the **plots** corresponding to metrics as function of IoU
 - All computed values are stored in **result tables** that can be exported in excel or csv format
@@ -22,6 +22,15 @@ MiC is an ImageJ plugin to compare segmentation masks.
 ## Install
 
 download the jar file and copy into plugin Folder of ImageJ
+or use the updater in Fiji:
+
+menu >Help>Update...
+
+click the button "Manage update sites"
+
+select MiC mask comparator
+
+if it is not available directly you can add it (button add update site) with the folowing URL https://sites.imagej.net/MiC-mask-comparator/
 
 ## Usage
 
@@ -65,21 +74,21 @@ Once the program ends the computation, several ouputs are displayed.
 
 ![MiC, outputs](ressources/MiC_results_screenshot.png)
 
-Depending on the choice of parameters, the outputs consists of 
+Depending on the choice of parameters, the outputs consist of 
 + one stack of superimposed masks
 + one plot if the varying IoU is selected. It displays the 4 metrics score on ordinate and IoU on abscissa
 	+ if working on stack this plot is replaced by
 		+ a stack of plot with one plot for each slice, corresponding to metrics for corresponding slice
 		+ a plot with metrics computed by summing objects from all slices
 + several result tables
-	- one containg counts of TP, FP, FN, metrics at pixel / object level
+	- one containing counts of TP, FP, FN, metrics at pixel / object level
 	- one containing counts with varying IoU
 	- one containing information about correspondence found with notably the IoU for each object
 
 #### image: display of masks GT_VS_mask
 
 ![MiC, output image](ressources/MiC_output_image.png)
-This stack of images is displayed when the option "Show composite images" is selected. The first slice is the pixel level superposition is the option "Pixel" is selected. The second is the Object level (IoU = 0.5) superposition if the option "Object (IoU=0.5)" is selected. The next slices corresponds to object level  with varying IoU thresholds, when the corresponding option is selected. The IoU thresholds used are displayed in the slice label.
+This stack of images is displayed when the option "Show composite images" is selected. The first slice is the pixel level superposition is the option "Pixel" is selected. The second is the Object level (IoU = 0.5) superposition if the option "Object (IoU=0.5)" is selected. The next slices correspond to object level  with varying IoU thresholds, when the corresponding option is selected. The IoU thresholds used are displayed in the slice label.
 
 The mask to test is superimposed to the ground truth with a color code
 + for pixel level
@@ -104,7 +113,7 @@ Take care specially when using the option "Object (varying IoU)", the number of 
 This result table displays for each slice 
 + the information of images and slice compared
 + the parameters of distance to border and minimum size of objects
-+ the number of objects in each compared images
++ the number of objects in each compared image
 + for Pixel level
 	* the number of pixels that are considered as TP, FP and FN
 	* the 4 metrics
@@ -141,7 +150,7 @@ This image stack displays when using the option "Object (varying IoU)" and the o
 #### plot window 2: plots summing all objects from stack
 
 This plot window displays when using the option "Object (varying IoU)" and the option "show summary graph (varying IoU)". It computes the sums of objects in all slices in each category (TP, FP, FN) and then calculates the 4 metrics with these sums. The plot shows the 4 metrics with the varying IoU thresholds.  
-Using the List button the values of the metrics can be recovered directly in a table that can be exported.
+Using the List button, the values of the metrics can be recovered directly in a table that can be exported.
 
 ## Licensing
 
