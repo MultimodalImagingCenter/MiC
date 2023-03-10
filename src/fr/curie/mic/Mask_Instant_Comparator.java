@@ -1087,7 +1087,7 @@ public class Mask_Instant_Comparator implements PlugIn {
 //          --> according to choices, launch the comparison
         if (!gd.wasCanceled()) {
             getChoicesFromGD(gd, isOpenImage);
-            analysis(isOpenImage);
+            analysis(true);
 
             if(compositeImage!=null) compositeImage.show();
             if(plotStack!=null) {
