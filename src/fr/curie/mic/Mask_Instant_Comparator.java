@@ -174,6 +174,7 @@ public class Mask_Instant_Comparator implements PlugIn {
     public static Roi[] oneIntensityParticleAnalyzer(ImageProcessor ip, double minSize,double maxSize) {
         ip.snapshot(); /* makes copy of image's pixel data that can be later restored*/
         int particleCount = 0;
+        double tolerance = 1e-5;
 
 //        Get dimension of images
         int width = ip.getWidth();
@@ -203,7 +204,7 @@ public class Mask_Instant_Comparator implements PlugIn {
                 intensityValue = ip.get(x, y);
                 if (intensityValue != 0) { /*is part of an object*/
                     particleCount++;
-                    wand.autoOutline(x, y, intensityValue, intensityValue, Wand.	EIGHT_CONNECTED); /*traces boundary of area of same intensity*/
+                    wand.autoOutline(x, y, intensityValue-tolerance, intensityValue+tolerance, Wand.EIGHT_CONNECTED); /*traces boundary of area of same intensity*/
                     Roi roi = new PolygonRoi(wand.xpoints, wand.ypoints, wand.npoints, roiType); /*create Roi from the wand outlined object*/
 
                     ip.fill(roi); /*fill the object to be "background"*/
