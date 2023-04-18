@@ -1,0 +1,13 @@
+<component name="libraryTable">
+  <library name="Maven: org.apache.jackrabbit:jackrabbit-webdav:2.21.7">
+    <CLASSES>
+      <root url="jar://$MAVEN_REPOSITORY$/org/apache/jackrabbit/jackrabbit-webdav/2.21.7/jackrabbit-webdav-2.21.7.jar!/" />
+    </CLASSES>
+    <JAVADOC>
+      <root url="jar://$MAVEN_REPOSITORY$/org/apache/jackrabbit/jackrabbit-webdav/2.21.7/jackrabbit-webdav-2.21.7-javadoc.jar!/" />
+    </JAVADOC>
+    <SOURCES>
+      <root url="jar://$MAVEN_REPOSITORY$/org/apache/jackrabbit/jackrabbit-webdav/2.21.7/jackrabbit-webdav-2.21.7-sources.jar!/" />
+    </SOURCES>
+  </library>
+</component>
