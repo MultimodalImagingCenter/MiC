@@ -13,7 +13,7 @@
     <artifactId>mask-instant-comparator</artifactId>
     <version>1.0.2-SNAPSHOT</version>
 
-    <name>Mask Instant Comparator (MiC)</name>
+    <name>Mask instant Comparator (MiC)</name>
     <description>MiC is an ImageJ plugin to compare segmentation masks</description>
     <url>https://github.com/Multimodal-Imaging-Center/MiC</url>
     <inceptionYear>2023</inceptionYear>
@@ -42,6 +42,12 @@
                 <role>reviewer</role>
                 <role>support</role>
                 <role>maintainer</role>
+            </roles>
+        </developer>
+        <developer>
+            <name>Camille Rabier</name>
+            <roles>
+                <role>developer</role>
             </roles>
         </developer>
     </developers>
