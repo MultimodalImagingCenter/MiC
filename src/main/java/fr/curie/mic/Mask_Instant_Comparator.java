@@ -1017,7 +1017,7 @@ public class Mask_Instant_Comparator implements PlugIn {
      */
     private GenericDialog getGenericDialog(boolean useOpenImages) {
         GenericDialog gd = new GenericDialog("Mask instant Comparator");
-        gd.setIconImage(Toolkit.getDefaultToolkit().getImage(getClass().getResource("/fr/curie/mic/resources/logo_MiC_50.png")));
+        gd.setIconImage(Toolkit.getDefaultToolkit().getImage(getClass().getResource("/logo_MiC_50.png")));
         String[] imageList = WindowManager.getImageTitles();
 //      True segmentation
         if (useOpenImages) gd.addChoice("Truth_mask_image", imageList, imageList[1]);
