@@ -87,7 +87,7 @@
     <properties>
         <package-name>fr.curie.mic</package-name>
         <main-class>fr.curie.mic.Mask_Instant_Comparator</main-class>
-        <license.licenseName>MIT License</license.licenseName>
+        <license.licenseName>mit</license.licenseName>
         <license.copyrightOwners>Multimodal-Imaging-Center</license.copyrightOwners>
         <scijava.app.directory>C:/applications/Fiji.app</scijava.app.directory>
         <scijava.app.subdirectory>plugins</scijava.app.subdirectory>
