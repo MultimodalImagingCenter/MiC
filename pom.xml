@@ -89,6 +89,7 @@
         <main-class>fr.curie.mic.Mask_Instant_Comparator</main-class>
         <license.licenseName>mit</license.licenseName>
         <license.copyrightOwners>Multimodal-Imaging-Center</license.copyrightOwners>
+        <license.excludes>**/resources/**</license.excludes>
         <scijava.app.directory>C:/applications/Fiji.app</scijava.app.directory>
         <scijava.app.subdirectory>plugins</scijava.app.subdirectory>
         <!-- NB: Deploy releases to the SciJava Maven repository. -->
