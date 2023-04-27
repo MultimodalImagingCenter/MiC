@@ -15,7 +15,7 @@
 
     <name>Mask instant Comparator (MiC)</name>
     <description>MiC is an ImageJ plugin to compare segmentation masks</description>
-    <url>https://github.com/Multimodal-Imaging-Center/MiC</url>
+    <url>https://github.com/MultimodalImagingCenter/MiC</url>
     <inceptionYear>2023</inceptionYear>
     <organization>
         <name>Multimodal-Imaging-Center</name>
@@ -68,10 +68,10 @@
     </mailingLists>
 
     <scm>
-        <connection>scm:git:https://github.com/Multimodal-Imaging-Center/MiC</connection>
-        <developerConnection>scm:git:git@github.com:Multimodal-Imaging-Center/MiC</developerConnection>
+        <connection>scm:git:https://github.com/MultimodalImagingCenter/MiC</connection>
+        <developerConnection>scm:git:git@github.com/MultimodalImagingCenter/MiC</developerConnection>
         <tag>HEAD</tag>
-        <url>https://github.com/Multimodal-Imaging-Center/MiC</url>
+        <url>https://github.com/MultimodalImagingCenter/MiC</url>
     </scm>
 
     <issueManagement>
@@ -81,7 +81,7 @@
 
     <ciManagement>
         <system>GitHub Actions</system>
-        <url>https://github.com/Multimodal-Imaging-Center/MiC/actions</url>
+        <url>https://github.com/MultimodalImagingCenter/MiC/actions</url>
     </ciManagement>
 
     <properties>
@@ -89,7 +89,7 @@
         <main-class>fr.curie.mic.Mask_Instant_Comparator</main-class>
         <license.licenseName>MIT License</license.licenseName>
         <license.copyrightOwners>Multimodal-Imaging-Center</license.copyrightOwners>
-        <scijava.app.directory>C:/Fiji.app/</scijava.app.directory>
+        <scijava.app.directory>C:/applications/Fiji.app</scijava.app.directory>
         <scijava.app.subdirectory>plugins</scijava.app.subdirectory>
         <!-- NB: Deploy releases to the SciJava Maven repository. -->
         <releaseProfiles>sign,deploy-to-scijava</releaseProfiles>
