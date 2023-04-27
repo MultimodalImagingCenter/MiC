@@ -69,7 +69,7 @@
 
     <scm>
         <connection>scm:git:https://github.com/MultimodalImagingCenter/MiC</connection>
-        <developerConnection>scm:git:git@github.com/MultimodalImagingCenter/MiC</developerConnection>
+        <developerConnection>scm:git:git@github.com:MultimodalImagingCenter/MiC</developerConnection>
         <tag>HEAD</tag>
         <url>https://github.com/MultimodalImagingCenter/MiC</url>
     </scm>
