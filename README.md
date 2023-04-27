@@ -1,3 +1,5 @@
+[![Build Status](https://github.com/MultimodalImagingCenter/MiC/actions/workflows/build.yml/badge.svg)](https://github.com/MultimodalImagingCenter/MiC/actions/workflows/build.yml)
+
 # Mask instant Comparator (MiC) <img src="ressources/logoMiC.png" width="100" >
 
 ## About
