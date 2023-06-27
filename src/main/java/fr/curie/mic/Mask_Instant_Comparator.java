@@ -199,7 +199,7 @@ public class Mask_Instant_Comparator implements PlugIn {
     public static Roi[] oneIntensityParticleAnalyzer(ImageProcessor ip, double minSize,double maxSize) {
         ip.snapshot(); /* makes copy of image's pixel data that can be later restored*/
         int particleCount = 0;
-        double tolerance = 1e-5;
+        double tolerance = 1e-2;
 
 //        Get dimension of images
         int width = ip.getWidth();
@@ -226,7 +226,7 @@ public class Mask_Instant_Comparator implements PlugIn {
          * The object is added to the RoiManager and is filled with 0, so that the other pixels of the object are not remeasured*/
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
-                intensityValue = ip.get(x, y);
+                intensityValue = ip.getPixelValue(x, y);
                 if (intensityValue != 0) { /*is part of an object*/
                     particleCount++;
                     wand.autoOutline(x, y, intensityValue-tolerance, intensityValue+tolerance, Wand.EIGHT_CONNECTED); /*traces boundary of area of same intensity*/
@@ -235,6 +235,7 @@ public class Mask_Instant_Comparator implements PlugIn {
                     ip.fill(roi); /*fill the object to be "background"*/
                     ip.setRoi(roi); /*show the object identified on the image*/
                     ImageStatistics stats = ImageStatistics.getStatistics(ip);
+                    //IJ.log("#"+intensityValue+" count:"+stats.pixelCount+" minSize:"+minSize+" maxSize"+maxSize);
                     if (stats.pixelCount>=minSize && stats.pixelCount<=maxSize){
                         roiManager.add(roi, particleCount);
                     }
