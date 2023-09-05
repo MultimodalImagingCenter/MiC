@@ -162,8 +162,10 @@ public class Mask_Instant_Comparator implements PlugIn {
             roiManager.open(roiPath);
             if (truth) {
                 truthRois = roiManager.getRoisAsArray();
+                IJ.log("load truth ROIs : "+truthRois.length+" ROIs");
             } else {
                 testRois = roiManager.getRoisAsArray();
+                IJ.log("load test ROIs : "+testRois.length+" ROIs");
             }
         } else {
             String type = truth ? "truth" : "test";
@@ -289,20 +291,28 @@ public class Mask_Instant_Comparator implements PlugIn {
     /**
      * Verify both images have the same size and combine all the results of the comparison methods
      */
-    public void analysis(boolean showResults) {
+    public boolean analysis() {
         IJ.log("Truth image:"+ truthMaskIP.getTitle());
         IJ.log("Test image:"+ testMaskIP.getTitle());
         boolean isStack;
 //        VERIFICATIONS
 //        -->if exists
-        if (testMaskIP == null || truthMaskIP == null) return;
+        if (testMaskIP == null || truthMaskIP == null) return false;
+        if(truthMaskIP.getType()== ImagePlus.COLOR_RGB || truthMaskIP.getType()== ImagePlus.COLOR_256) {
+            IJ.error("the truth mask should be in gray levels (one value per object for instance segmentation)!");
+            return false;
+        }
+        if(testMaskIP.getType()== ImagePlus.COLOR_RGB || testMaskIP.getType()== ImagePlus.COLOR_256) {
+            IJ.error("the test mask should be in gray levels (one value per object for instance segmentation)!");
+            return false;
+        }
         IJ.log("truth is Stack "+truthMaskIP.isStack());
         IJ.log("test is Stack "+testMaskIP.isStack());
 //        --> if same size
         if ((testMaskIP.getProcessor().getHeight() != truthMaskIP.getProcessor().getHeight())
                 || (testMaskIP.getProcessor().getWidth() != truthMaskIP.getProcessor().getWidth())) {
             IJ.error("The images : " + truthMaskIP.getTitle() + " and " + testMaskIP.getTitle() + " do not have the same size");
-            return;
+            return false;
         }
 //        --> if stack
         if (testMaskIP.isStack() && truthMaskIP.isStack()){ /*both stacks*/
@@ -310,13 +320,13 @@ public class Mask_Instant_Comparator implements PlugIn {
                 isStack=true;
             }else { /*different number of slices*/
                 IJ.error("Both images are stacks, but with different number of slices.");
-                return;
+                return false;
             }
         } else if (!testMaskIP.isStack() && !truthMaskIP.isStack()){ /*none is a stack*/
             isStack=false;
         } else {/*only one ImagePlus is a stack*/
             IJ.error("Only one image is a stack.");
-            return;
+            return false;
         }
         setLUT(truthMaskIP);
         setLUT(testMaskIP);
@@ -333,10 +343,12 @@ public class Mask_Instant_Comparator implements PlugIn {
                 Roi[] truthRoiStackTemp = null;
                 Roi[] testRoiStackTemp = null;
                 if (truthRois!=null){
-                    truthRoiStackTemp = setSliceRoi(truthRois, nrSlice);
+                    if(truthMaskIP.getNSlices()>1) truthRoiStackTemp = setSliceRoi(truthRois, nrSlice);
+                    else truthRoiStackTemp = setSliceRoi(truthRois, 0);
                 }
                 if (testRois!=null){
-                    testRoiStackTemp = setSliceRoi(testRois, nrSlice);
+                    if(testMaskIP.getNSlices()>1) testRoiStackTemp = setSliceRoi(testRois, nrSlice);
+                    else testRoiStackTemp = setSliceRoi(testRois, 0);
                 }
 //                --> Set colum with images names*/
                 resultsTable.addValue("Truth image", truthMaskIP.getTitle());
@@ -361,16 +373,10 @@ public class Mask_Instant_Comparator implements PlugIn {
 //            resultsTable.addValue("Test image", testMaskIP.getTitle());
 //            pairComparisonChoice(1,truthMaskIP.getProcessor(),testMaskIP.getProcessor(),truthRois,testRois);
 //        }
-        if (showResults)    {
-            resultsTable.show("Mask comparison results");
-            if(pixelObjectMethod)pixelObjectResultsTable.show("Mask comparison Object with IoU thresholds");
-            if(pixelObjectMethod||objectMethod) objectCorrespondanceTable.show("Objects correspondences");
-        }
-        if(showSummary&&tps!=null){
-            createFinalGraph("plot summing all objects from stack",thresholds,tps,fps,fns);
-        }
+
         setLUT(truthMaskIP);
         setLUT(testMaskIP);
+        return true;
     }
 
     /**
@@ -381,6 +387,7 @@ public class Mask_Instant_Comparator implements PlugIn {
     private Roi[] setSliceRoi(Roi[] roisAll, int nrSlice) {
         ArrayList<Roi> roiArrayList = new ArrayList<>();
         for (Roi roi: roisAll){
+            //IJ.log("roi : "+roi.getZPosition());
             if (roi.getZPosition()== nrSlice) roiArrayList.add(roi);
         }
         Roi[] roiArray = new Roi[roiArrayList.size()];
@@ -444,11 +451,15 @@ public class Mask_Instant_Comparator implements PlugIn {
             IJ.log("convert Truth mask to Rois");
             truthRois = oneIntensityParticleAnalyzer(truthMaskProc,minSize,maxSize);
             IJ.log(truthRois.length+" Rois in Truth mask");
+        }else{
+            IJ.log("comparison truth ROIs: "+truthRois.length+" no need to create from image");
         }
         if (testRois == null) {
             IJ.log("convert Test mask to Rois");
             testRois = oneIntensityParticleAnalyzer(testMaskProc,minSize,maxSize);
             IJ.log(testRois.length+" Rois in Test mask");
+        }else{
+            IJ.log("comparison test ROIs: "+testRois.length+" no need to create from image");
         }
         if (objectMethod) {
             resultsTable.addValue("Truth objects", truthRois.length);
@@ -989,6 +1000,18 @@ public class Mask_Instant_Comparator implements PlugIn {
         if (useOpenImages) testMaskPathOrTitle = gd.getNextChoice();
         else testMaskPathOrTitle = gd.getNextString();
 
+        boolean showImage;
+        if (!useOpenImages) showImage = gd.getNextBoolean();
+        else showImage = false;
+        String truthRoiTemp = "";
+        String testRoiTemp = "";
+        if(!useOpenImages){
+            truthRoiTemp = gd.getNextString();
+            testRoiTemp = gd.getNextString();
+            if(!truthRoiTemp.equals("")) IJ.log("will load truth ROI: "+truthRoiTemp);
+            if(!testRoiTemp.equals("")) IJ.log("will load test ROI: "+testRoiTemp);
+        }
+
         //String testRoiTemp = gd.getNextString();
 
 //        Get methods to use
@@ -1003,9 +1026,6 @@ public class Mask_Instant_Comparator implements PlugIn {
         overlapMax = gd.getNextNumber();
         overlapInc = gd.getNextNumber();
 
-        boolean showImage;
-        if (!useOpenImages) showImage = gd.getNextBoolean();
-        else showImage = false;
         boolean showComposite = gd.getNextBoolean();
         showGraphs = gd.getNextBoolean();
         showSummary = gd.getNextBoolean();
@@ -1017,14 +1037,14 @@ public class Mask_Instant_Comparator implements PlugIn {
         if (useOpenImages) testMaskIP = WindowManager.getImage(testMaskPathOrTitle);
         else testMaskIP = getImage(testMaskPathOrTitle, showImage);
 
-        minDist = gd.getNextNumber();
         minSize = gd.getNextNumber();
         maxSize = Double.POSITIVE_INFINITY;
-        IJ.log("minimum distance to border: "+minDist);
+        minDist = gd.getNextNumber();
         IJ.log("minimum size of objects: "+minSize);
+        IJ.log("minimum distance to border: "+minDist);
 //        Set ROIs
-        //if (!truthRoiTemp.equals("")) setRois(truthRoiTemp, true);
-        //if (!testRoiTemp.equals("")) setRois(testRoiTemp, false);
+        if (!truthRoiTemp.equals("")) setRois(truthRoiTemp, true);
+        if (!testRoiTemp.equals("")) setRois(testRoiTemp, false);
         if (showComposite && truthMaskIP.getNSlices()==testMaskIP.getNSlices()) createCompositeStack();
 
         if(!truthMaskIP.isStack() || !testMaskIP.isStack()) showSummary=false;
@@ -1043,8 +1063,23 @@ public class Mask_Instant_Comparator implements PlugIn {
      */
     private GenericDialog getGenericDialog(boolean useOpenImages) {
         GenericDialog gd = new GenericDialog("Mask instant Comparator");
+        //Font f = gd.getFont();
+        //IJ.log("default font is "+f.getFontName());
+        //gd.setFont(new Font("Monospaced", Font.PLAIN, f.getSize()));
         gd.setIconImage(Toolkit.getDefaultToolkit().getImage(getClass().getResource("/logo_MiC_50.png")));
         String[] imageList = WindowManager.getImageTitles();
+        try {
+            gd.setInsets(10,250,0);
+            gd.addImage(IJ.openImage(getClass().getResource("/logo_MiC_50.png").toURI().toString()));
+            //gd.addToSameRow();
+            gd.addMessage("Developped by Cédric Messaoudi from the Multimodal Imaging Center - Institut Curie (France)");
+            //gd.addToSameRow();
+            //gd.addImage(IJ.openImage(getClass().getResource("/MIC_IC_logo.png").toURI().toString()));
+
+        }catch (Exception e){
+            e.printStackTrace();
+        }
+        gd.addMessage("--------------------------------------------------        data        --------------------------------------------------");
 //      True segmentation
         if (useOpenImages) gd.addChoice("Truth_mask_image", imageList, imageList[1]);
         else gd.addFileField("Truth_mask_path", "");
@@ -1055,6 +1090,16 @@ public class Mask_Instant_Comparator implements PlugIn {
         else gd.addFileField("Test_mask_path", "");
         //gd.addFileField("Test_particles_ROI_zip_path(if exists)", "");
 
+        if (!useOpenImages) {
+            //gd.addToSameRow();
+            gd.addCheckbox("Show_images", true);
+        }
+        if(!useOpenImages) {
+            gd.addMessage("----------------------------------------------- load ROIs (optionnal) -----------------------------------------------");
+            gd.addFileField("Truth_ROI_zip_path(if exists)", "");
+            gd.addFileField("Test_ROI_zip_path(if exists)", "");
+        }
+        gd.addMessage("--------------------------------------------------     parameters     --------------------------------------------------");
 
 //        Methods
         gd.addCheckboxGroup(1, 3, new String[]{"Pixel", "Object_(IoU=0.5)", "Object_(varying_IoU)"}, new boolean[]{true, true, true});
@@ -1063,15 +1108,17 @@ public class Mask_Instant_Comparator implements PlugIn {
         gd.addNumericField("Increment of IoU threshold (0-1)", 0.05,2);
 
 //        Additional choices
-        if (!useOpenImages) {
-            gd.addCheckbox("Show_images", true);
-            gd.addToSameRow();
-        }
+        gd.addMessage("-------------------------------------------------- displayed results  --------------------------------------------------");
         gd.addCheckboxGroup(1, 4, new String[]{"Show_composite_images", "Show_graphs_(varying_IoU)", "Show_summary_graph_(varying IoU)" , "Show_GT_objects_correspondence_table"}, new boolean[]{true, true, true,true});
-        gd.addNumericField("minimum_distance_to_border_(pixels)",0);
-        gd.addNumericField("Minimum_size_for_particles (pixels)",0);
+
+        gd.addMessage("-------------------------------------------------- filters on objects --------------------------------------------------");
+        gd.addNumericField("Minimum_size_for_objects (pixels)",0);
+        gd.addNumericField("Minimum_distance_to_border_(pixels)",0);
+
         gd.addMessage("distance to border value explanation:");
+        //gd.addToSameRow();
         gd.addMessage("set -1 to remove nothing, 0 to remove objects touching borders, higher values uses the distance of truth object's center to border");
+
         return gd;
     }
 
@@ -1114,7 +1161,16 @@ public class Mask_Instant_Comparator implements PlugIn {
 //          --> according to choices, launch the comparison
         if (!gd.wasCanceled()) {
             getChoicesFromGD(gd, isOpenImage);
-            analysis(true);
+            if(!analysis()) return;
+
+
+            resultsTable.show("Mask comparison results");
+            if(pixelObjectMethod)pixelObjectResultsTable.show("Mask comparison Object with IoU thresholds");
+            if(pixelObjectMethod||objectMethod) objectCorrespondanceTable.show("Objects correspondences");
+
+            if(showSummary&&truthMaskIP.getNSlices()>1&&tps!=null){
+                createFinalGraph("plot summing all objects from stack",thresholds,tps,fps,fns);
+            }
 
             if(compositeImage!=null) compositeImage.show();
             if(plotStack!=null) {
