@@ -11,7 +11,7 @@
 
     <groupId>fr.curie.mic</groupId>
     <artifactId>mask-instant-comparator</artifactId>
-    <version>1.0.5-SNAPSHOT</version>
+    <version>1.0.6-SNAPSHOT</version>
 
     <name>Mask instant Comparator (MiC)</name>
     <description>MiC is an ImageJ plugin to compare segmentation masks</description>
