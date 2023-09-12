@@ -38,12 +38,14 @@ import ij.plugin.frame.RoiManager;
 import ij.process.*;
 
 import java.awt.*;
+import java.awt.event.ItemEvent;
+import java.awt.event.ItemListener;
 import java.awt.image.IndexColorModel;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Vector;
 
-import static ij.IJ.d2s;
 
 //TODO centre géométrique
 // Class to compare two mask and measure the differences between them
@@ -1096,29 +1098,74 @@ public class Mask_Instant_Comparator implements PlugIn {
         }
         if(!useOpenImages) {
             gd.addMessage("----------------------------------------------- load ROIs (optionnal) -----------------------------------------------");
-            gd.addFileField("Truth_ROI_zip_path(if exists)", "");
-            gd.addFileField("Test_ROI_zip_path(if exists)", "");
+            gd.addFileField("Truth_ROI_zip_path (if exists)", "");
+            gd.addFileField("Test_ROI_zip_path (if exists)", "");
         }
         gd.addMessage("--------------------------------------------------     parameters     --------------------------------------------------");
 
 //        Methods
         gd.addCheckboxGroup(1, 3, new String[]{"Pixel", "Object_(IoU=0.5)", "Object_(varying_IoU)"}, new boolean[]{true, true, true});
-        gd.addNumericField("Minimum IoU threshold (0-1)", 0.5,2);
-        gd.addNumericField("Maximum IoU threshold (0-1)", 1.0,2);
-        gd.addNumericField("Increment of IoU threshold (0-1)", 0.05,2);
+        gd.addNumericField("Minimum_IoU_threshold (0-1)", 0.5,2);
+        gd.addNumericField("Maximum_IoU_threshold (0-1)", 1.0,2);
+        gd.addNumericField("Increment_of_IoU_threshold (0-1)", 0.05,2);
 
 //        Additional choices
         gd.addMessage("-------------------------------------------------- displayed results  --------------------------------------------------");
-        gd.addCheckboxGroup(1, 4, new String[]{"Show_composite_images", "Show_graphs_(varying_IoU)", "Show_summary_graph_(varying IoU)" , "Show_GT_objects_correspondence_table"}, new boolean[]{true, true, true,true});
+        gd.addCheckboxGroup(1, 4, new String[]{"Show_composite_images", "Show_graphs", "Show_summary_graph (Stacks)" , "Show_GT_objects_correspondence_table"}, new boolean[]{true, true, true,true});
 
         gd.addMessage("-------------------------------------------------- filters on objects --------------------------------------------------");
         gd.addNumericField("Minimum_size_for_objects (pixels)",0);
-        gd.addNumericField("Minimum_distance_to_border_(pixels)",0);
+        gd.addNumericField("Minimum_distance_to_border (pixels)",0);
 
         gd.addMessage("distance to border value explanation:");
         //gd.addToSameRow();
         gd.addMessage("set -1 to remove nothing, 0 to remove objects touching borders, higher values uses the distance of truth object's center to border");
 
+        Vector chV=gd.getCheckboxes();
+        Vector numV=gd.getNumericFields();
+        int offset=useOpenImages?0:1;
+        Checkbox objCB=(Checkbox)chV.get(1+offset);
+        Checkbox varIoUCB=(Checkbox)chV.get(2+offset);
+        varIoUCB.addItemListener(new ItemListener() {
+            @Override
+            public void itemStateChanged(ItemEvent e) {
+                boolean varChecked=varIoUCB.getState();
+                boolean objChecked=objCB.getState();
+                //IJ.log("varying IoU activated: "+checked);
+                ((TextField)numV.get(0)).setEnabled(varChecked);
+                ((TextField)numV.get(1)).setEnabled(varChecked);
+                ((TextField)numV.get(2)).setEnabled(varChecked);
+
+                ((Checkbox)chV.get(4+offset)).setEnabled(varChecked);
+                ((Checkbox)chV.get(5+offset)).setEnabled(varChecked);
+                ((Checkbox)chV.get(6+offset)).setEnabled(varChecked||objChecked);
+
+                ((TextField)numV.get(3)).setEnabled(varChecked||objChecked);
+                ((TextField)numV.get(4)).setEnabled(varChecked||objChecked);
+
+                gd.repaint();
+            }
+        });
+        objCB.addItemListener(new ItemListener() {
+            @Override
+            public void itemStateChanged(ItemEvent e) {
+                boolean varChecked=varIoUCB.getState();
+                boolean objChecked=objCB.getState();
+                //IJ.log("varying IoU activated: "+checked);
+                ((TextField)numV.get(0)).setEnabled(varChecked);
+                ((TextField)numV.get(1)).setEnabled(varChecked);
+                ((TextField)numV.get(2)).setEnabled(varChecked);
+
+                ((Checkbox)chV.get(4+offset)).setEnabled(varChecked);
+                ((Checkbox)chV.get(5+offset)).setEnabled(varChecked);
+                ((Checkbox)chV.get(6+offset)).setEnabled(varChecked||objChecked);
+
+                ((TextField)numV.get(3)).setEnabled(varChecked||objChecked);
+                ((TextField)numV.get(4)).setEnabled(varChecked||objChecked);
+
+                gd.repaint();
+            }
+        });
         return gd;
     }
 
@@ -1166,7 +1213,7 @@ public class Mask_Instant_Comparator implements PlugIn {
 
             resultsTable.show("Mask comparison results");
             if(pixelObjectMethod)pixelObjectResultsTable.show("Mask comparison Object with IoU thresholds");
-            if(pixelObjectMethod||objectMethod) objectCorrespondanceTable.show("Objects correspondences");
+            if((pixelObjectMethod||objectMethod) && showCorrespondances) objectCorrespondanceTable.show("Objects correspondences");
 
             if(showSummary&&truthMaskIP.getNSlices()>1&&tps!=null){
                 createFinalGraph("plot summing all objects from stack",thresholds,tps,fps,fns);
