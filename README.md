@@ -95,25 +95,25 @@ This stack of images is displayed when the option "Show composite images" is sel
 
 The mask to test is superimposed to the ground truth with a color code
 + for pixel level
-	*  <span style="background-color:#00FF00;color:black">**green**</span> for GT (FN)
-	* <span style="background-color:#FF0000;color:white">**red**</span> for mask (FP)
-	* <span style="background-color:#FFFF00;color:black">**yellow**</span> where the two masks overlaps (TP)
+	*  ![MiC, dialog window](ressources/green.png) **green** for GT (FN)
+	* ![MiC, dialog window](ressources/red.png) **red** for mask (FP)
+	* ![MiC, dialog window](ressources/yellow.png) **yellow** where the two masks overlaps (TP)
 
 <BR>
 
 + for object level (the IoU threshold is displayed in the slice label)	
-	-  <span style="background-color:#FFFF00;color:black">**yellow**</span> (TP): these are objects common to both masks (GT, test) and validated by the given IoU threshold. 
-	-  <span style="background-color:#00FF00;color:black">**green**</span> (TP): these are true positives with objects that are underestimated (smaller in the test mask).
-	- <span style="background-color:#FF0000;color:white">**red**</span> (TP): these are true positives with objects that are overestimated (larger in the test mask). 
-	- <span style="background-color:#009600;color:black">**dark green**</span> (FN): these are false negatives, objects in the GT mask that don't match any object in test mask.
-	- <span style="background-color:#0000FF;color:white">**blue**</span> (FP): These are false positives, test mask objects that do not match any object in GT mask.
-	- <span style="background-color:#00FFFF;color:black">**cyan**</span> (FP and FN or FP): two possibilities:
+	-  ![MiC, dialog window](ressources/yellow.png) **yellow** (TP): these are objects common to both masks (GT, test) and validated by the given IoU threshold. 
+	-  ![MiC, dialog window](ressources/green.png) **green** (TP): these are true positives with objects that are underestimated (smaller in the test mask).
+	- ![MiC, dialog window](ressources/red.png) **red** (TP): these are true positives with objects that are overestimated (larger in the test mask). 
+	- ![MiC, dialog window](ressources/darkgreen.png) **dark green** (FN): these are false negatives, objects in the GT mask that don't match any object in test mask.
+	- ![MiC, dialog window](ressources/blue.png) **blue** (FP): These are false positives, test mask objects that do not match any object in GT mask.
+	- ![MiC, dialog window](ressources/cyan.png) **cyan** (FP and FN or FP): two possibilities:
 		- these are objects common to both masks (GT, test ) but not validated by the given IoU threshold. 
 		- These are false positives corresponding to the division of an object in the GT mask into several objects in the test mask. One of the objects in the test mask will be yellow or cyan (depending on validation by the given IoU threshold), the others will necessarily be cyan.
-	- <span style="background-color:#FF9600;color:black">**orange**</span> (FN): These are false negatives corresponding to the merging of objects in the GT mask into a single object in the test mask, one of whose objects is validated by the given IoU threshold. One of the objects in the GT mask will be yellow, while the others will be orange.
-	- <span style="background-color:#0096FF;color:black">**royal blue**</span> (FP): These are false positives that correspond to the merging of objects in the GT mask into a single object in the test mask, one of whose objects has a match but is not validated by the given IoU threshold. One of the objects in the GT mask will be cyan, the others will be royal blue (often also associated with dark green).
-	-  <span style="background-color:#000000;color:white">**black**</span>: pixels belonging to no object.
-	-   <span style="background-color:#808080;color:white">**grey**</span>: these are objects eliminated with respect of distance to border parameter 
+	- ![MiC, dialog window](ressources/orange.png) **orange** (FN): These are false negatives corresponding to the merging of objects in the GT mask into a single object in the test mask, one of whose objects is validated by the given IoU threshold. One of the objects in the GT mask will be yellow, while the others will be orange.
+	- ![MiC, dialog window](ressources/royalblue.png) **royal blue** (FP): These are false positives that correspond to the merging of objects in the GT mask into a single object in the test mask, one of whose objects has a match but is not validated by the given IoU threshold. One of the objects in the GT mask will be cyan, the others will be royal blue (often also associated with dark green).
+	-   ![MiC, dialog window](ressources/grey.png) **grey**: these are objects eliminated with respect of distance to border parameter. 
+	-  ![MiC, dialog window](ressources/black.png) **black**: pixels belonging to no object.
 	
 ___Warning!___  
 Take a special care when using the option "Object (varying IoU)", the number of image can be quite high depending on the number of slices and the number of thresholds tested (defined using minimum, maximum and increment). As it is a composite image 4 images are created for each test (green for GT, red for TP in mask, blue for FN in mask and gray for non valid objects), the memory usage is high. 
