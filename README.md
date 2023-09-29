@@ -97,7 +97,7 @@ The mask to test is superimposed to the ground truth with a color code
 + for pixel level
 	*  <span style="background-color:#00FF00;color:black">**green**</span> for GT (FN)
 	* <span style="background-color:#FF0000;color:white">**red**</span> for mask (FP)
-	* <span style="background-color:#FF0000;color:white">**yellow**</span> where the two masks overlaps (TP)
+	* <span style="background-color:#FFFF00;color:white">**yellow**</span> where the two masks overlaps (TP)
 
 <BR>
 
