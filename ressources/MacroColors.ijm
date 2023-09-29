@@ -48,8 +48,22 @@ run("Fill", "slice");
 saveAs("PNG", "C:/cloud/progs/MiC-GitHub/MiC/ressources/orange.png");
 
 //royalblue
-setForegroundColor(255, 150, 0);
+setForegroundColor(0, 150, 255);
 newImage("Untitled", "RGB black", 30, 20, 1);
 makeRectangle(2, 2, 26, 16);
 run("Fill", "slice");
 saveAs("PNG", "C:/cloud/progs/MiC-GitHub/MiC/ressources/royalblue.png");
+
+
+//black
+newImage("Untitled", "RGB black", 30, 20, 1);
+saveAs("PNG", "C:/cloud/progs/MiC-GitHub/MiC/ressources/black.png");
+
+
+//grey
+setForegroundColor(128, 128, 128);
+newImage("Untitled", "RGB black", 30, 20, 1);
+makeRectangle(2, 2, 26, 16);
+run("Fill", "slice");
+saveAs("PNG", "C:/cloud/progs/MiC-GitHub/MiC/ressources/grey.png");
+
