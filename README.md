@@ -58,16 +58,17 @@ Selection of parameter for varying threshold for the object level with varying I
 
 Selection of outputs
 + Show composite images
-+ Show graphs (varying IoU)
-+ Show summary graph (varying IoU)
++ Show graphs 
++ Show summary graph (Stacks)
 + Show GT objects correspondence table
 
 Selection of filters on objects to remove objects touching border of image or small objects that might be due to noise
+
++ Minimum size for objects (pixels)
 + Minimum distance to border (pixels)
 	* -1 to remove nothing
 	* 0 to remove object touching borders
 	* higher values to define a minimal distance of object's center to border
-+ Minimum size for particles (pixels)
 
 
 ### Outputs description
@@ -77,38 +78,45 @@ Once the program ends the computation, several ouputs are displayed.
 ![MiC, outputs](ressources/MiC_results_screenshot.png)
 
 Depending on the choice of parameters, the outputs consist of 
-+ one stack of superimposed masks
-+ one plot if the varying IoU is selected. It displays the 4 metrics score on ordinate and IoU on abscissa
++ one stack of superimposed masks (if "show composite images" is checked)
++ one plot if the varying IoU is selected and "show graphs" is checked. It displays the 4 metrics score on ordinate and IoU on abscissa 
 	+ if working on stack this plot is replaced by
 		+ a stack of plot with one plot for each slice, corresponding to metrics for corresponding slice
-		+ a plot with metrics computed by summing objects from all slices
+		+ a plot with metrics computed by summing objects from all slices (if "show summary graph" is checked)
 + several result tables
 	- one containing counts of TP, FP, FN, metrics at pixel / object level
 	- one containing counts with varying IoU
-	- one containing information about correspondence found with notably the IoU for each object
+	- one containing information about correspondence found with notably the IoU for each object (if "show GT correspondence table" is checked)
 
 #### image: display of masks GT_VS_mask
 
 ![MiC, output image](ressources/MiC_output_image.png)
-This stack of images is displayed when the option "Show composite images" is selected. The first slice is the pixel level superposition is the option "Pixel" is selected. The second is the Object level (IoU = 0.5) superposition if the option "Object (IoU=0.5)" is selected. The next slices correspond to object level  with varying IoU thresholds, when the corresponding option is selected. The IoU thresholds used are displayed in the slice label.
+This stack of images is displayed when the option "Show composite images" is selected. The first slice is the pixel level superposition if the option "Pixel" is selected. The second is the Object level (IoU = 0.5) superposition if the option "Object (IoU=0.5)" is selected. The next slices correspond to object level  with varying IoU thresholds, when the corresponding option is selected. The IoU thresholds used are displayed in the slice label.
 
 The mask to test is superimposed to the ground truth with a color code
 + for pixel level
-	* Green for GT (FN)
-	* Red for mask (FP)
+	*  <span style="background-color:#00FF00;color:black">**green**</span> for GT (FN)
+	* <span style="background-color:#FF0000;color:white">**red**</span> for mask (FP)
 	* Yellow where the two masks overlaps (TP)
-+ for object level (the IoU threshold is displayed in the slice label)
-	* Yellow for corresponding objects (TP)
-	* Green for underestimation of TP
-	* Red for overestimation of TP
-	* Dark green for GT objects without correspondence (FN)
-	* Dark blue for Mask's objects without correspondence (FP)
-	* Cyan for objects with IoU lower than threshold 
-	* Orange for fused objects
-	* Gray for objects eliminated with respect of distance to border parameter 
+
+<BR>
+
++ for object level (the IoU threshold is displayed in the slice label)	
+	-  <span style="background-color:#FFFF00;color:black">**yellow**</span> (TP): these are objects common to both masks (GT, test) and validated by the given IoU threshold. 
+	-  <span style="background-color:#00FF00;color:black">**green**</span> (TP): these are true positives with objects that are underestimated (smaller in the test mask).
+	- <span style="background-color:#FF0000;color:white">**red**</span> (TP): these are true positives with objects that are overestimated (larger in the test mask). 
+	- <span style="background-color:#009600;color:black">**dark green**</span> (FN): these are false negatives, objects in the GT mask that don't match any object in test mask.
+	- <span style="background-color:#0000FF;color:white">**blue**</span> (FP): These are false positives, test mask objects that do not match any object in GT mask.
+	- <span style="background-color:#00FFFF;color:black">**cyan**</span> (FP and FN or FP): two possibilities:
+		- these are objects common to both masks (GT, test ) but not validated by the given IoU threshold. 
+		- These are false positives corresponding to the division of an object in the GT mask into several objects in the test mask. One of the objects in the test mask will be yellow or cyan (depending on validation by the given IoU threshold), the others will necessarily be cyan.
+	- <span style="background-color:#FF9600;color:black">**orange**</span> (FN): These are false negatives corresponding to the merging of objects in the GT mask into a single object in the test mask, one of whose objects is validated by the given IoU threshold. One of the objects in the GT mask will be yellow, while the others will be orange.
+	- <span style="background-color:#0096FF;color:black">**royal blue**</span> (FP): These are false positives that correspond to the merging of objects in the GT mask into a single object in the test mask, one of whose objects has a match but is not validated by the given IoU threshold. One of the objects in the GT mask will be cyan, the others will be royal blue (often also associated with dark green).
+	-  <span style="background-color:#000000;color:white">**black**</span>: pixels belonging to no object.
+	-   <span style="background-color:#808080;color:white">**grey**</span>: these are objects eliminated with respect of distance to border parameter 
 	
 ___Warning!___  
-Take care specially when using the option "Object (varying IoU)", the number of image can be quite high depending on the number of slices and the number of thresholds tested (defined using minimum, maximum and increment). As it is a composite image 4 images are created for each test (green for GT, red for TP in mask, blue for FN in mask and gray for non valid objects), the memory usage is high. 
+Take a special care when using the option "Object (varying IoU)", the number of image can be quite high depending on the number of slices and the number of thresholds tested (defined using minimum, maximum and increment). As it is a composite image 4 images are created for each test (green for GT, red for TP in mask, blue for FN in mask and gray for non valid objects), the memory usage is high. 
 
 #### result window 1: Mask comparison results
 
