@@ -2,7 +2,7 @@
  * #%L
  * MiC is an ImageJ plugin to compare segmentation masks
  * %%
- * Copyright (C) 2023 Multimodal-Imaging-Center
+ * Copyright (C) 2023 - 2024 Multimodal-Imaging-Center
  * %%
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
