@@ -40,9 +40,15 @@ run >Plugin>MiC>Mask instant Comparator
 
 or 
 
-run >Plugin>MiC>Mask instant Comparator
+run >Plugin>MiC>Mask instant Comparator3D
+
+![MiC3D_dialog](https://github.com/MultimodalImagingCenter/MiC/assets/93767992/9c7b9bdf-4dd4-46e4-8c43-7e5ece47725c)
+
+![MiC3D_output](https://github.com/MultimodalImagingCenter/MiC/assets/93767992/58fd6855-89de-4611-b5ec-d35527222105)
 
 please look at the [wiki](https://github.com/MultimodalImagingCenter/MiC/wiki) for more information on each plugin.
+
+
 
 ## Licensing
 
