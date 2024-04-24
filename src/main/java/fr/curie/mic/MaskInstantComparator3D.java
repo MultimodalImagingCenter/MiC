@@ -112,7 +112,7 @@ public class MaskInstantComparator3D implements PlugIn {
             pixelObjectResultsTable = new ResultsTable();
         }
 
-        if(showComposite) createLUT();
+        if(showComposite) lutcomposite = getMiCLUT();
 
         analysis();
 
@@ -180,7 +180,7 @@ public class MaskInstantComparator3D implements PlugIn {
         return true;
     }
 
-    protected void createLUT(){
+    public static LUT getMiCLUT(){
         byte[] r=new byte[256];
         byte[] g=new byte[256];
         byte[] b=new byte[256];
@@ -225,7 +225,7 @@ public class MaskInstantComparator3D implements PlugIn {
         g[10]=(byte)128;
         b[10]=(byte)128;
 
-        lutcomposite = new LUT(r,g,b);
+        return new LUT(r,g,b);
     }
 
     /**
