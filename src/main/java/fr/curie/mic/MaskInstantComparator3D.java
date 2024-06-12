@@ -113,7 +113,6 @@ public class MaskInstantComparator3D implements PlugIn {
         }
 
         if(showComposite) lutcomposite = getMiCLUT();
-
         analysis();
 
         resultsTable.show("Mask comparison results");
@@ -129,6 +128,12 @@ public class MaskInstantComparator3D implements PlugIn {
         IJ.log("Truth has "+maxTruth+" objects");
         IJ.log("Test has "+maxTest+" objects");
 
+
+        resultsTable.addValue("Truth image", truthMaskIP.getTitle());
+        resultsTable.addValue("Test image", testMaskIP.getTitle());
+        resultsTable.addValue("Truth objects", maxTruth);
+        resultsTable.addValue("Test objects", maxTest);
+
         //compute histogram 2D to get correspondance between two images
         ImageProcessor histo2D = MicUtils.histo2D(truthMaskIP,maxTruth,testMaskIP,maxTest);
         //pixel analysis
@@ -137,9 +142,12 @@ public class MaskInstantComparator3D implements PlugIn {
         //object based analysis
         if(objectMethod || pixelObjectMethod) {
             //compute histograms 1D for each images
+            //IJ.log("truth histo");
             int[] histoTruth=MicUtils.histo1D(truthMaskIP,maxTruth);
+            //IJ.log("test histo");
             int[] histoTest=MicUtils.histo1D(testMaskIP,maxTest);
             //compute IoUs for each objects
+            //IJ.log("compute ious");
             ImageProcessor iou = MicUtils.computesIoUs(histo2D, histoTruth, histoTest);
             checkPositionAndSize(iou,histoTruth,histoTest,minSize,minDist);
             if(showCorrespondances) new ImagePlus("objects_correspondance_X_Truth_Y_Test",iou).show();
@@ -411,6 +419,9 @@ public class MaskInstantComparator3D implements PlugIn {
 
         truthMaskIP.resetRoi();
         testMaskIP.resetRoi();
+
+        MicUtils.checkImagePlus(truthMaskIP);
+        MicUtils.checkImagePlus(testMaskIP);
 
         minSize = gd.getNextNumber();
         maxSize = Double.POSITIVE_INFINITY;

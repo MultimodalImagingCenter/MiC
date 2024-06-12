@@ -28,15 +28,14 @@ package fr.curie.mic;
 import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
-import ij.process.FloatProcessor;
-import ij.process.ImageProcessor;
-import ij.process.ShortProcessor;
-import ij.process.StackStatistics;
+import ij.io.FileInfo;
+import ij.plugin.Converter;
+import ij.process.*;
 
 public class MicUtils {
 
     public static int[] histo1D(ImagePlus imp, int max){
-        IJ.log("histo1D max "+max);
+        //IJ.log("histo1D max "+max);
         int[] histo = new int[max+1];
         if(imp.getNSlices()==1){
             return histo1D(imp.getProcessor(),histo);
@@ -49,11 +48,18 @@ public class MicUtils {
     }
 
     public static int[] histo1D(ImageProcessor ip, int[] histo){
+        int count=0;
         for(int y=0;y<ip.getHeight();y++){
             for(int x=0;x<ip.getWidth();x++){
-                histo[(int)ip.getf(x,y)]++;
+                int val=(int)ip.getf(x,y);
+                if(val<histo.length) {
+                    histo[val]++;
+                }else{
+                    count++;
+                }
             }
         }
+        if(count>0) IJ.log(count+" pixels were incorrects!");
         return histo;
     }
 
@@ -131,5 +137,16 @@ public class MicUtils {
             }
         }
         return convert;
+    }
+
+    public static void checkImagePlus(ImagePlus imp){
+        //IJ.log("image type: "+imp.getFileInfo().fileType);
+        //IJ.log("image type (original): "+imp.getOriginalFileInfo().fileType);
+        if(imp.getOriginalFileInfo().fileType== FileInfo.GRAY16_SIGNED){
+           //IJ.log("correct 16-bit signed");
+           ImageConverter converter=new ImageConverter(imp);
+           converter.convertToGray32();
+           converter.convertToGray16();
+        }
     }
 }
