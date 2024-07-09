@@ -356,7 +356,7 @@ public class MaskInstantComparator3D implements PlugIn {
 
                 ((Checkbox)chV.get(4+offset)).setEnabled(varChecked);
                 ((Checkbox)chV.get(5+offset)).setEnabled(varChecked);
-                ((Checkbox)chV.get(6+offset)).setEnabled(varChecked||objChecked);
+               // ((Checkbox)chV.get(6+offset)).setEnabled(varChecked||objChecked);
 
                 ((TextField)numV.get(3)).setEnabled(varChecked||objChecked);
                 ((TextField)numV.get(4)).setEnabled(varChecked||objChecked);
