@@ -142,11 +142,14 @@ public class MicUtils {
     public static void checkImagePlus(ImagePlus imp){
         //IJ.log("image type: "+imp.getFileInfo().fileType);
         //IJ.log("image type (original): "+imp.getOriginalFileInfo().fileType);
-        if(imp.getOriginalFileInfo().fileType== FileInfo.GRAY16_SIGNED){
-           //IJ.log("correct 16-bit signed");
-           ImageConverter converter=new ImageConverter(imp);
-           converter.convertToGray32();
-           converter.convertToGray16();
-        }
+    	FileInfo currentFileInfo = imp.getOriginalFileInfo();
+    	if (currentFileInfo != null) {
+    		if(currentFileInfo.fileType == FileInfo.GRAY16_SIGNED){
+    			//IJ.log("correct 16-bit signed");
+    			ImageConverter converter=new ImageConverter(imp);
+    			converter.convertToGray32();
+    			converter.convertToGray16();
+    		}			
+		}
     }
 }
