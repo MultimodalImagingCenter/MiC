@@ -192,43 +192,43 @@ public class MaskInstantComparator3D implements PlugIn {
         byte[] r=new byte[256];
         byte[] g=new byte[256];
         byte[] b=new byte[256];
-        //TP
+        //TP (yellow)
         r[1]=(byte)255;
         g[1]=(byte)255;
         b[1]=(byte)0;
-        //TP OVER
+        //TP OVER (red)
         r[2]=(byte)255;
         g[2]=(byte)0;
         b[2]=(byte)0;
-        //TP under
+        //TP under (green)
         r[3]=(byte)0;
         g[3]=(byte)255;
         b[3]=(byte)0;
-        //fused
+        //fused (orange)
         r[4]=(byte)255;
         g[4]=(byte)128;
         b[4]=(byte)0;
-        //split
+        //split (cyan)
         r[5]=(byte)0;
         g[5]=(byte)255;
         b[5]=(byte)255;
-        //IoU under
+        //IoU under (blue)
         r[6]=(byte)0;
         g[6]=(byte)0;
         b[6]=(byte)255;
-        //IoU under_ext
+        //IoU under_ext (purple)
         r[7]=(byte)128;
         g[7]=(byte)0;
         b[7]=(byte)255;
-        //FP
+        //FP (dark red)
         r[8]=(byte)128;
         g[8]=(byte)0;
         b[8]=(byte)0;
-        //FN
+        //FN (dark green)
         r[9]=(byte)0;
         g[9]=(byte)128;
         b[9]=(byte)0;
-        //Not Analyzed
+        //Not Analyzed (grey)
         r[10]=(byte)128;
         g[10]=(byte)128;
         b[10]=(byte)128;
