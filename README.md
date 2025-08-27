@@ -165,3 +165,24 @@ Using the List button, the values of the metrics can be recovered directly in a 
 ## Licensing
 
  MiC plugin is licensed under the MIT License
+ 
+## features added
+### v1.0.7
+added several metrics called average precision (AP) or mean average precision (mAP) following the definition in 
+
+>Hirling, D., Tasnadi, E., Caicedo, J. et al. Segmentation metric misinterpretations in bioimage analysis. Nat Methods 21, 213–216 (2024). https://doi.org/10.1038/s41592-023-01942-8
+
+from table 1 
+
+| Metric | description | note | implemented |
+| :------: | :----------- | :------------- | :--------------: |
+| AP<sub>1</sub> | area under the recall/precision | fixed IoU, need confidence score | not yet implemented  | 
+| mAP<sub>1</sub> | average of Ap<sub>1</sub> for all **classes** | need confidence score | not yet implemented |
+| AP<sub>2</sub> | corresponds to jaccard index |  fixed IoU | jaccard index value in result windows 1 and 2 |
+| mAP<sub>2</sub> | average of AP<sub>2</sub> for **IoU** in a range | | added to the result window 1 |
+| AP<sub>3</sub> | average of precision for **IoU** in a range | | added to the result window 1 |
+| mAP<sub>3</sub> | average of AP<sub>3</sub> for all **images** |easy to compute from result window 1 | not implemented |
+| mAP<sub>4</sub> | precision * recall  | fixed IoU | added to result window 2 for each IoU |
+| mAP<sub>5</sub> | average of mAP<sub>2</sub> for all **images** | easy to compute from result window 1 | not implemented |
+| AP<sub>4</sub> | average of AP<sub>1</sub> for **IoU** in a range |  need confidence score | not yet implemented  |
+| mAP<sub>6</sub> = AP<sub>5</sub> | average of AP<sub>4</sub> for all **classes** | need confidence score | not yet implemented |
