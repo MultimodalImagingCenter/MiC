@@ -25,10 +25,7 @@
  */
 package fr.curie.mic;
 
-import ij.IJ;
-import ij.ImagePlus;
-import ij.ImageStack;
-import ij.WindowManager;
+import ij.*;
 import ij.gui.*;
 import ij.measure.ResultsTable;
 import ij.plugin.LutLoader;
@@ -54,7 +51,7 @@ public class Mask_Instant_Comparator implements PlugIn {
     private ImagePlus truthMaskIP;
     private ImagePlus testMaskIP;
     //composite image created in results
-    private ImagePlus compositeImage;
+    private ImagePlus[] compositeImage;
 
     //    Methods of comparison
     private double minSize;
@@ -335,38 +332,50 @@ public class Mask_Instant_Comparator implements PlugIn {
 
 //        STACK
         //if (isStack){
+        int[]dimensions=truthMaskIP.getDimensions(); //[width,height,channels, slices, frames]
+        for(int c=0;c<dimensions[2];c++) {
+            for(int t=0;t<dimensions[4];t++) {
 //            Iterate on slices
-            for (int nrSlice = 1; nrSlice <= truthMaskIP.getNSlices(); nrSlice++) {
-                if(nrSlice>1) {
-                    resultsTable.incrementCounter();
-                    pixelObjectResultsTable.incrementCounter();
-                }
+                for (int nrSlice = 1; nrSlice <= truthMaskIP.getNSlices(); nrSlice++) {
+                    if (nrSlice > 1) {
+                        resultsTable.incrementCounter();
+                        pixelObjectResultsTable.incrementCounter();
+                    }
 //                --> If ROI given by user, filter the ROIs according to slice
-                Roi[] truthRoiStackTemp = null;
-                Roi[] testRoiStackTemp = null;
-                if (truthRois!=null){
-                    if(truthMaskIP.getNSlices()>1) truthRoiStackTemp = setSliceRoi(truthRois, nrSlice);
-                    else truthRoiStackTemp = setSliceRoi(truthRois, 0);
-                }
-                if (testRois!=null){
-                    if(testMaskIP.getNSlices()>1) testRoiStackTemp = setSliceRoi(testRois, nrSlice);
-                    else testRoiStackTemp = setSliceRoi(testRois, 0);
-                }
+                    Roi[] truthRoiStackTemp = null;
+                    Roi[] testRoiStackTemp = null;
+                    if (truthRois != null) {
+                        if (truthMaskIP.getNSlices() > 1) truthRoiStackTemp = setSliceRoi(truthRois,c,t, nrSlice);
+                        else truthRoiStackTemp = setSliceRoi(truthRois, 0,0,0);
+                    }
+                    if (testRois != null) {
+                        if (testMaskIP.getNSlices() > 1) testRoiStackTemp = setSliceRoi(testRois,c,t, nrSlice);
+                        else testRoiStackTemp = setSliceRoi(testRois, 0,0,0);
+                    }
 //                --> Set colum with images names*/
-                resultsTable.addValue("Truth image", truthMaskIP.getTitle());
-                resultsTable.addValue("Test image", testMaskIP.getTitle());
-                resultsTable.addValue("Slice number", nrSlice);
-                resultsTable.addValue("minimum distance to border", minDist);
-                resultsTable.addValue("minimum size of objects", minSize);
+                    resultsTable.addValue("Truth image", truthMaskIP.getTitle());
+                    resultsTable.addValue("Test image", testMaskIP.getTitle());
+                    resultsTable.addValue("Channel", c);
+                    resultsTable.addValue("Frame", t);
+                    resultsTable.addValue("Slice number", nrSlice);
+                    resultsTable.addValue("minimum distance to border", minDist);
+                    resultsTable.addValue("minimum size of objects", minSize);
 
 //                --> Do the comparisons by changing the slice displayed (and so the main image processor)
-                if(truthMaskIP.isStack()) {
-                    truthMaskIP.setSlice(nrSlice);
-                    testMaskIP.setSlice(nrSlice);
+                    if (truthMaskIP.isStack()) {
+                        truthMaskIP.setSlice(nrSlice);
+                        testMaskIP.setSlice(nrSlice);
+                    }
+                    pairComparisonChoice(c,t,nrSlice, truthMaskIP.getProcessor(), testMaskIP.getProcessor(), truthRoiStackTemp, testRoiStackTemp);
+                    resultsTable.incrementCounter();
+                    if(pixelObjectResultsTable!=null) pixelObjectResultsTable.incrementCounter();
                 }
-                pairComparisonChoice(nrSlice,truthMaskIP.getProcessor(),testMaskIP.getProcessor(),truthRoiStackTemp,testRoiStackTemp);
-
             }
+        }
+        //remove last line of resultsTable
+        resultsTable.deleteRow(resultsTable.getCounter()-1);
+        if(pixelObjectResultsTable!=null) pixelObjectResultsTable.deleteRow(pixelObjectResultsTable.getCounter()-1);
+        if(objectCorrespondanceTable!=null) objectCorrespondanceTable.deleteRow(objectCorrespondanceTable.getCounter()-1);
 
 //          NOT A STACK
 //        }else{
@@ -386,11 +395,11 @@ public class Mask_Instant_Comparator implements PlugIn {
      * @param roisAll : array containing all the Rois
      * @param nrSlice : slice of the Rois we want to keep
      */
-    private Roi[] setSliceRoi(Roi[] roisAll, int nrSlice) {
+    private Roi[] setSliceRoi(Roi[] roisAll, int channel, int frame,int nrSlice) {
         ArrayList<Roi> roiArrayList = new ArrayList<>();
         for (Roi roi: roisAll){
             //IJ.log("roi : "+roi.getZPosition());
-            if (roi.getZPosition()== nrSlice) roiArrayList.add(roi);
+            if (roi.getZPosition()== nrSlice && roi.getTPosition()==frame && roi.getCPosition()==channel) roiArrayList.add(roi);
         }
         Roi[] roiArray = new Roi[roiArrayList.size()];
         for (int roi = 0; roi < roiArrayList.size(); roi++) {
@@ -447,7 +456,7 @@ public class Mask_Instant_Comparator implements PlugIn {
      * @param truthRois : array of ROIs delimiting truth particles
      * @param testRois : array of ROIs delimiting test particles
      */
-    private void pairComparisonChoice(int nrSlice, ImageProcessor truthMaskProc,ImageProcessor testMaskProc, Roi[] truthRois, Roi[] testRois) {
+    private void pairComparisonChoice(int channel, int time, int nrSlice, ImageProcessor truthMaskProc,ImageProcessor testMaskProc, Roi[] truthRois, Roi[] testRois) {
 //            Set ROIs  and if object type comparison add a colum with the number of found objects
         if (truthRois == null) {
             IJ.log("convert Truth mask to Rois");
@@ -475,7 +484,7 @@ public class Mask_Instant_Comparator implements PlugIn {
         int indexComposite=1;
         if (pixelMethod) {
             pixelComparison(truthMaskProc,testMaskProc);
-            if(compositeImage!=null) addCompositePixels(compositeImage,indexComposite,nrSlice);
+            if(compositeImage!=null) addCompositePixels(compositeImage[channel],indexComposite,channel,time,nrSlice);
         }
         if(objectMethod||pixelObjectMethod){
             int[] objectAssignation = new int[truthRois.length];
@@ -485,7 +494,10 @@ public class Mask_Instant_Comparator implements PlugIn {
             boolean[] validTest=new boolean[testRois.length];
             validateRoisToBorder(truthRois,validTruth,minDist,truthMaskProc.getWidth(),truthMaskProc.getHeight());
             validateRoisToBorder(testRois,validTest,minDist,truthMaskProc.getWidth(),truthMaskProc.getHeight());
-            if(showCorrespondances) addCorrespondenceToTable(truthMaskIP.getTitle(),nrSlice, truthRois,objectAssignation,overlapPercents,validTruth,objectCorrespondanceTable);
+            if(showCorrespondances) {
+                addCorrespondenceToTable(truthMaskIP.getTitle(),channel,time,nrSlice, truthRois,objectAssignation,overlapPercents,validTruth,objectCorrespondanceTable);
+                objectCorrespondanceTable.incrementCounter();
+            }
             if(objectMethod){
                 int nbIndexes=1;
                 double[] tp= new double[nbIndexes];
@@ -499,7 +511,7 @@ public class Mask_Instant_Comparator implements PlugIn {
                 computeStats(truthRois,testRois,objectAssignation, validTruth, validTest,overlapPercents,0.5,0.5,1,thresholds,tp,fp,fn,precision,sensitivity,jaccardIndex,fmeasure);
                 //create object Image
                 indexComposite++;
-                if(compositeImage!=null)addCompositeObjects(compositeImage,indexComposite,nrSlice,truthRois,testRois,objectAssignation,validTruth,validTest,overlapPercents,0.5);
+                if(compositeImage!=null)addCompositeObjects(compositeImage[channel],indexComposite,channel,time,nrSlice,truthRois,testRois,objectAssignation,validTruth,validTest,overlapPercents,0.5);
                 //put things in Result table
                 addToResultTable(resultsTable,"Object (IoU=0.5)",tp[0],fp[0],fn[0],precision[0],sensitivity[0],jaccardIndex[0],fmeasure[0],-1);
             }
@@ -514,7 +526,24 @@ public class Mask_Instant_Comparator implements PlugIn {
                 double[] jaccardIndex= new double[nbIndexes];
                 double[] fmeasure= new double[nbIndexes];
                 computeStats(truthRois,testRois,objectAssignation,validTruth,validTest, overlapPercents,overlapMin,overlapMax,overlapInc,thresholds,tp,fp,fn,precision,sensitivity,jaccardIndex,fmeasure);
-
+                //computes mAP folowing definitions in Hirling et al, Nature methods 2022
+                //AP1 cannot be measured without confidence fixed IoU
+                //mAP1 cannot be computed without confidence average of AP1 for all classes (fixed IoU)
+                //AP2 correspond to jaccard index
+                //mAP2 corresponds to average of jaccard index for all IoU
+                double mAP2 = 0;
+                for(double AP_2:jaccardIndex) mAP2+=AP_2;
+                mAP2/=jaccardIndex.length;
+                resultsTable.addValue("mAP = 1/NIoU * sum(TP(IoU)/(TP(IoU)+FP(IoU)+FN(IoU)))",mAP2);
+                //AP3 corresponds to the average of precision for all IoU
+                double mAP3 = 0;
+                for(double AP_3:precision) mAP3+=AP_3;
+                mAP3/=precision.length;
+                resultsTable.addValue("mAP = 1/NIoU * sum(TP(IoU)/(TP(IoU)+FP(IoU)))",mAP3);
+                //mAP4 precision x recall
+                //mAP5 corresponds to the average of jaccard index for all slices
+                // AP4 COCO metric cannot compute without confidence average of AP1 for all IoU
+                //mAP6 = AP5 = average of AP4 for all classes cannot compute without confidence
                 //store for global measure
                 if(tps==null) tps = new double[nbIndexes];
                 if(fns==null) fns = new double[nbIndexes];
@@ -529,7 +558,7 @@ public class Mask_Instant_Comparator implements PlugIn {
                 if(compositeImage!=null){
                     for(double range:thresholds){
                         indexComposite++;
-                        addCompositeObjects(compositeImage,indexComposite,nrSlice,truthRois,testRois,objectAssignation,validTruth,validTest,overlapPercents,range);
+                        addCompositeObjects(compositeImage[channel],indexComposite,channel,time,nrSlice,truthRois,testRois,objectAssignation,validTruth,validTest,overlapPercents,range);
                     }
                 }
                 //create graphs
@@ -539,10 +568,13 @@ public class Mask_Instant_Comparator implements PlugIn {
                     if(i!=0)pixelObjectResultsTable.incrementCounter();
                     pixelObjectResultsTable.addValue("Truth image", truthMaskIP.getTitle());
                     pixelObjectResultsTable.addValue("Test image", testMaskIP.getTitle());
+                    pixelObjectResultsTable.addValue("channel", channel);
+                    pixelObjectResultsTable.addValue("frame", time);
                     pixelObjectResultsTable.addValue("Slice number", nrSlice);
                     pixelObjectResultsTable.addValue("Truth objects", truthRois.length);
                     pixelObjectResultsTable.addValue("Test objects", testRois.length);
                     addToResultTable(pixelObjectResultsTable, "Object", tp[i], fp[i], fn[i], precision[i], sensitivity[i], jaccardIndex[i], fmeasure[i], thresholds[i]);
+                    pixelObjectResultsTable.addValue("AP = precision*sensitivity", precision[i]*sensitivity[i]);
                 }
             }
         }
@@ -584,10 +616,12 @@ public class Mask_Instant_Comparator implements PlugIn {
 
     }
 
-    private void addCorrespondenceToTable(String name,int slice,Roi[] rois, int[] correspondance, double[] overlapPercent,boolean[] valid, ResultsTable rt){
+    private void addCorrespondenceToTable(String name,int channel, int time, int slice,Roi[] rois, int[] correspondance, double[] overlapPercent,boolean[] valid, ResultsTable rt){
         for(int i=0;i<correspondance.length;i++){
             if(i!=0) rt.incrementCounter();
             rt.addValue("image",name);
+            rt.addValue("channel",channel);
+            rt.addValue("frame",time);
             rt.addValue( "slice", slice);
             rt.addValue("roi truth",i);
             rt.addValue("centerX",rois[i].getBounds().getCenterX());
@@ -647,7 +681,7 @@ public class Mask_Instant_Comparator implements PlugIn {
                               double[] precision, double[] sensitivity, double[] jaccardIndex, double[] fmeasure){
         int index=0;
         for(double range=rangeMin; range<=rangeMax+0.000001; range+=rangeIncrement){
-            thresholds[index]=Math.round(range*100.0)/100.0;
+            thresholds[index]=Math.round(range*10000.0)/10000.0;
             tp[index]=0;
             int validTru=0;
             int validTe=0;
@@ -655,7 +689,8 @@ public class Mask_Instant_Comparator implements PlugIn {
                 if(validTruth[i]) {
                     validTru++;
                     if (correspondence[i] >= 0 ) {
-                        if(overlapPercent[i] >= range) tp[index]++;
+                        //IJ.log("truth: "+i+"\t test: "+correspondence[i]+"\t overlap: "+overlapPercent[i]);
+                        if(overlapPercent[i] >= thresholds[index]) tp[index]++;
                         validTe++;
                     }
                 }
@@ -675,7 +710,7 @@ public class Mask_Instant_Comparator implements PlugIn {
             precision[index] = tp[index] / (tp[index] + fp[index]);
             sensitivity[index] = tp[index] / (tp[index] + fn[index]);
             jaccardIndex[index] = tp[index] / (tp[index] + fn[index] + fp[index]);
-            fmeasure[index] = 2 * precision[index] * sensitivity[index] / (precision[index] + sensitivity[index]);
+            fmeasure[index] = 2 * precision[index] * sensitivity[index] / (precision[index] + sensitivity[index]+10e-40);
             index++;
         }
     }
@@ -688,7 +723,15 @@ public class Mask_Instant_Comparator implements PlugIn {
         IJ.log("nbIndexes:"+nbIndexes);
         nbIndexes+=((objectMethod)?1:0);
         IJ.log("nbIndexes:"+nbIndexes);
-        compositeImage=IJ.createImage("display of masks "+truthMaskIP.getTitle()+"__VS__"+testMaskIP.getTitle(), "composite", truthMaskIP.getWidth(),truthMaskIP.getHeight(),4,truthMaskIP.getNSlices(),nbIndexes);
+        IJ.log("nb channels : "+truthMaskIP.getNChannels());
+        IJ.log("nb frames : "+truthMaskIP.getNFrames());
+        IJ.log("nb z: "+truthMaskIP.getNSlices());
+        IJ.log("create "+truthMaskIP.getNChannels()+" composite stack (one per channel)");
+        compositeImage = new ImagePlus[truthMaskIP.getNChannels()];
+        for(int channel=1;channel<=truthMaskIP.getNChannels();channel++){
+            compositeImage[channel-1]=IJ.createImage("C"+channel+"_display of masks "+truthMaskIP.getTitle()+"__VS__"+testMaskIP.getTitle(), "composite", truthMaskIP.getWidth(),truthMaskIP.getHeight(),nbIndexes,truthMaskIP.getNSlices(),truthMaskIP.getNFrames());
+        }
+
     }
 
     private void createGraphs(String title,double[] thresholds, double[] precision, double[] sensitivity, double[] jaccardIndex, double[] fmeasure){
@@ -771,27 +814,45 @@ public class Mask_Instant_Comparator implements PlugIn {
 
     }
 
-    private void addCompositePixels(ImagePlus imp, int index, int slice){
+    private void addCompositePixels(ImagePlus imp, int index, int channel, int time, int slice){
             IJ.log("add composite from pixels");
             truthMaskIP.setSlice(slice);
             testMaskIP.setSlice(slice);
             ByteProcessor truthMaskBinary = getMaskBinary(truthMaskIP);
             ByteProcessor testMaskBinary = getMaskBinary(testMaskIP);
-            imp.getImageStack().getProcessor(imp.getStackIndex(2,slice,index)).copyBits(truthMaskBinary,0,0, Blitter.COPY);
+            ColorProcessor col=new ColorProcessor(truthMaskIP.getWidth(),truthMaskIP.getHeight());
+            col.setChannel(1, testMaskBinary);
+            col.setChannel(2, truthMaskBinary);
+            ImagePlus rgb=new ImagePlus("rgb",col);
+            ImageConverter converter = new ImageConverter(rgb);
+            converter.convertRGBtoIndexedColor(256);
+            //rgb.show();
+            imp.getImageStack().getProcessor(imp.getStackIndex(index, slice,time)).copyBits(rgb.getProcessor(), 0,0,Blitter.COPY);
+
+            CompositeImage ci = (CompositeImage) imp;
+            ci.setChannelLut(rgb.getProcessor().getLut(), index);
+
+
+
+            /*imp.getImageStack().getProcessor(imp.getStackIndex(2,slice,index)).copyBits(truthMaskBinary,0,0, Blitter.COPY);
             imp.getImageStack().setSliceLabel("pixels level (truth)",imp.getStackIndex(2,slice,index));
             imp.getImageStack().getProcessor(imp.getStackIndex(1,slice,index)).copyBits(testMaskBinary,0,0, Blitter.COPY);
             imp.getImageStack().setSliceLabel("pixels level (test)",imp.getStackIndex(1,slice,index));
-            imp.getImageStack().setSliceLabel("pixels level (nothing)",imp.getStackIndex(3,slice,index));
+            imp.getImageStack().setSliceLabel("pixels level (nothing)",imp.getStackIndex(3,slice,index));*/
             imp.resetDisplayRange();
 
     }
-    private void addCompositeObjects(ImagePlus imp, int index, int slice, Roi[] truthRois, Roi[]testRois, int[] correspondence, boolean[] validTruth, boolean[] validTest, double[] overlapPercent,double threshold ){
+    private void addCompositeObjects(ImagePlus imp, int index, int channel, int time, int slice, Roi[] truthRois, Roi[]testRois, int[] correspondence, boolean[] validTruth, boolean[] validTest, double[] overlapPercent,double threshold ){
         IJ.log("add composite from objects with threshold "+threshold);
-        ImageProcessor truth=imp.getImageStack().getProcessor(imp.getStackIndex(2,slice,index));
+        ColorProcessor col=new ColorProcessor(truthMaskIP.getWidth(),truthMaskIP.getHeight());
+        ByteProcessor truthMaskBinary = new ByteProcessor(truthMaskIP.getWidth(),truthMaskIP.getHeight());
+        ByteProcessor testOKMaskBinary = new ByteProcessor(truthMaskIP.getWidth(),truthMaskIP.getHeight());
+        ByteProcessor testKOMaskBinary = new ByteProcessor(truthMaskIP.getWidth(),truthMaskIP.getHeight());
+        /*ImageProcessor truth=imp.getImageStack().getProcessor(imp.getStackIndex(index,slice,time));
         truth.setValue(255);
-        ImageProcessor testOK=imp.getImageStack().getProcessor(imp.getStackIndex(1,slice,index));
+        ImageProcessor testOK=imp.getImageStack().getProcessor(imp.getStackIndex(index,slice,time));
         testOK.setValue(255);
-        ImageProcessor testNot=imp.getImageStack().getProcessor(imp.getStackIndex(3,slice,index));
+        ImageProcessor testNot=imp.getImageStack().getProcessor(imp.getStackIndex(index,slice,time));
         testNot.setValue(255);
         ImageProcessor invalidObjects=imp.getImageStack().getProcessor(imp.getStackIndex(4,slice,index));
         invalidObjects.setValue(128);
@@ -800,36 +861,67 @@ public class Mask_Instant_Comparator implements PlugIn {
         imp.getImageStack().setSliceLabel("object(IoU="+threshold+") test found",imp.getStackIndex(1,slice,index));
         imp.getImageStack().setSliceLabel("object(IoU="+threshold+") test not found",imp.getStackIndex(3,slice,index));
         imp.getImageStack().setSliceLabel("invalid objects (distance>"+minDist+" from border)",imp.getStackIndex(4,slice,index));
-
+*/
         for(int i=0;i<correspondence.length;i++){
             if(validTruth[i]) {
                 if (correspondence[i] >= 0 && overlapPercent[i] >= threshold) {
-                    testOK.fill(testRois[correspondence[i]]);
-                    truth.setValue(255);
-                    truth.fill(truthRois[i]);
+                    //testOK.fill(testRois[correspondence[i]]);
+                    //truth.setValue(255);
+                    //truth.fill(truthRois[i]);
+                    testOKMaskBinary.setValue(255);
+                    testOKMaskBinary.fill(testRois[correspondence[i]]);
+                    truthMaskBinary.setValue(255);
+                    truthMaskBinary.fill(truthRois[i]);
                 } else if (correspondence[i] >= 0) {
-                    testNot.fill(testRois[correspondence[i]]);
-                    truth.setValue(255);
-                    truth.fill(truthRois[i]);
+                    //testNot.fill(testRois[correspondence[i]]);
+                    //truth.setValue(255);
+                    //truth.fill(truthRois[i]);
+                    testKOMaskBinary.setValue(255);
+                    testKOMaskBinary.fill(testRois[correspondence[i]]);
+                    truthMaskBinary.setValue(255);
+                    truthMaskBinary.fill(truthRois[i]);
                 }else{
-                    truth.setValue(150);
-                    truth.fill(truthRois[i]);
+                    truthMaskBinary.setValue(150);
+                    truthMaskBinary.fill(truthRois[i]);
                 }
             }else{
-                invalidObjects.fill(truthRois[i]);
+                truthMaskBinary.setValue(128);
+                truthMaskBinary.fill(truthRois[i]);
+
+                //invalidObjects.fill(truthRois[i]);
                 if(correspondence[i] >= 0){
-                    invalidObjects.fill(testRois[correspondence[i]]);
+                    //invalidObjects.fill(testRois[correspondence[i]]);
+                    testOKMaskBinary.setValue(128);
+                    testOKMaskBinary.fill(testRois[correspondence[i]]);
+                    testKOMaskBinary.setValue(128);
+                    testKOMaskBinary.fill(testRois[correspondence[i]]);
                 }
             }
         }
         for(int i=0;i< testRois.length;i++){
             int j=findIndexOf(correspondence,i);
             if(j<0) {
-                if(validTest[i]) testNot.fill(testRois[i]);
-                else invalidObjects.fill(testRois[i]);
+                if(validTest[i]) {
+                    //testNot.fill(testRois[i]);
+                    testKOMaskBinary.setValue(255);
+                    testKOMaskBinary.fill(testRois[i]);
+                }
+                else {
+                    //invalidObjects.fill(testRois[i]);
+                }
             }
         }
-
+        col.setChannel(1, testOKMaskBinary);
+        col.setChannel(2, truthMaskBinary);
+        col.setChannel(3, testKOMaskBinary);
+        ImagePlus rgb=new ImagePlus("rgb",col);
+        ImageConverter converter = new ImageConverter(rgb);
+        converter.convertRGBtoIndexedColor(256);
+        //rgb.show();
+        imp.getImageStack().getProcessor(imp.getStackIndex(index, slice,time)).copyBits(rgb.getProcessor(), 0,0,Blitter.COPY);
+        CompositeImage ci = (CompositeImage) imp;
+        ci.setChannelLut(rgb.getProcessor().getLut(), index);
+        //imp.getImageStack().getProcessor(imp.getStackIndex(index,slice,time)).copyBits(col,0,0,Blitter.COPY);
     }
 
     private int findIndexOf(int[]array, int value){
@@ -1219,7 +1311,11 @@ public class Mask_Instant_Comparator implements PlugIn {
                 createFinalGraph("plot summing all objects from stack",thresholds,tps,fps,fns);
             }
 
-            if(compositeImage!=null) compositeImage.show();
+            if(compositeImage!=null) {
+                for(ImagePlus ip:compositeImage) {
+                    ip.show();
+                }
+            }
             if(plotStack!=null) {
                 ImagePlus impGraphs=new ImagePlus("plots "+truthMaskIP.getTitle()+"__VS__"+testMaskIP.getTitle(),plotStack);
                 impGraphs.show();
