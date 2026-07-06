@@ -69,6 +69,65 @@ public class IoUAnalysis {
         );
     }
 
+    public static IoUAnalysis create(
+            ImagePlus truth,
+            ImagePlus test,
+            double minSize,
+            double minDist
+    ) {
+
+        int maxTruth =
+                MicUtils.correctObjectNumbering(truth);
+
+        int maxTest =
+                MicUtils.correctObjectNumbering(test);
+
+        ImageProcessor histo2D =
+                MicUtils.histo2D(
+                        truth,
+                        maxTruth,
+                        test,
+                        maxTest
+                );
+
+        int[] histoTruth =
+                MicUtils.histo1D(
+                        truth,
+                        maxTruth
+                );
+
+        int[] histoTest =
+                MicUtils.histo1D(
+                        test,
+                        maxTest
+                );
+
+        ImageProcessor iou =
+                MicUtils.computesIoUs(
+                        histo2D,
+                        histoTruth,
+                        histoTest
+                );
+
+        IoUAnalysis result =
+                new IoUAnalysis(
+                        truth,
+                        test,
+                        iou
+                );
+
+        result.checkPositionAndSize(
+                iou,
+                histoTruth,
+                histoTest,
+                minSize,
+                minDist,
+                truth,
+                test
+        );
+
+        return result;
+    }
 
 
     public ImageProcessor getIoU() {

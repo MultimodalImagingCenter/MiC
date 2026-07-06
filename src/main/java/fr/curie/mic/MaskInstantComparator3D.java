@@ -194,7 +194,8 @@ public class MaskInstantComparator3D implements PlugIn {
             //compute IoUs for each objects
             //IJ.log("compute ious");
             //ImageProcessor iou = MicUtils.computesIoUs(histo2D, histoTruth, histoTest);
-            IoUAnalysis analysis = computeIoUForVolumes(truthMaskIP, testMaskIP);
+            //IoUAnalysis analysis = computeIoUForVolumes(truthMaskIP, testMaskIP);
+            IoUAnalysis analysis = IoUAnalysis.create(truthMaskIP,testMaskIP,minSize,minDist);
             //checkPositionAndSize(iou,histoTruth,histoTest,minSize,minDist,truthMaskIP,testMaskIP);
             if(showCorrespondances) new ImagePlus("objects_correspondance_X_Truth_Y_Test",analysis.getIoU()).show();
             if(objectMethod) {
@@ -400,27 +401,7 @@ public class MaskInstantComparator3D implements PlugIn {
         return result;
     }
 
-    private IoUAnalysis computeIoUForVolumes(ImagePlus truthVolume, ImagePlus testVolume) {
 
-        int maxTruth = MicUtils.correctObjectNumbering(truthVolume);
-        int maxTest = MicUtils.correctObjectNumbering(testVolume);
-
-        ImageProcessor histo2D = MicUtils.histo2D(
-                truthVolume,
-                maxTruth,
-                testVolume,
-                maxTest
-        );
-
-        int[] histoTruth = MicUtils.histo1D(truthVolume, maxTruth);
-        int[] histoTest = MicUtils.histo1D(testVolume, maxTest);
-
-        ImageProcessor iou = MicUtils.computesIoUs(histo2D, histoTruth, histoTest);
-
-        return new IoUAnalysis(truthVolume, testVolume, iou,
-                histoTruth, histoTest, minSize, minDist);
-
-    }
 
     private void buildAndShowCompositeHyperstacks(ImagePlus originalTruth, ImagePlus originalTest) {
 
@@ -454,7 +435,8 @@ public class MaskInstantComparator3D implements PlugIn {
                 ImagePlus testVolume = extractCZVolume(originalTest, originalChannel, t);
 
                 //ImageProcessor iou = computeIoUForVolumes(truthVolume, testVolume);
-                IoUAnalysis analysis = computeIoUForVolumes(truthVolume, testVolume);
+                //IoUAnalysis analysis = computeIoUForVolumes(truthVolume, testVolume);
+                IoUAnalysis analysis = IoUAnalysis.create(truthVolume,testVolume,minSize,minDist);
                 ImageProcessor[] colorcodes = new ImageProcessor[thresholds.length];
 
                 for (int thresholdIndex = 0; thresholdIndex < thresholds.length; thresholdIndex++) {
