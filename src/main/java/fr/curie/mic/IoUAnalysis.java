@@ -1,12 +1,16 @@
 package fr.curie.mic;
 
+import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
 import ij.process.ByteProcessor;
 import ij.process.ImageProcessor;
 import ij.process.LUT;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 
 public class IoUAnalysis {
 
@@ -40,6 +44,32 @@ public class IoUAnalysis {
         this.test = test;
         this.iou = iou;
     }
+
+    public IoUAnalysis(
+            ImagePlus truth,
+            ImagePlus test,
+            ImageProcessor iou,
+            int[] histoTruth,
+            int[] histoTest,
+            double minSize,
+            double minDist
+    ) {
+        this.truth = truth;
+        this.test = test;
+        this.iou = iou;
+
+        checkPositionAndSize(
+                iou,
+                histoTruth,
+                histoTest,
+                minSize,
+                minDist,
+                truth,
+                test
+        );
+    }
+
+
 
     public ImageProcessor getIoU() {
         return iou;
@@ -130,21 +160,21 @@ public class IoUAnalysis {
         return bp;
     }
 
-    protected ImagePlus displayCombination(ImagePlus truth, ImagePlus test, ImageProcessor colorcode){
-        if(truth.getNSlices()==1){
-            ImagePlus tmp = new ImagePlus("composite_"+truth.getTitle()+"_VS_"+test.getTitle(),
-                    displayCombinationProcessor(truth.getProcessor(),test.getProcessor(),colorcode));
+    protected ImagePlus displayCombination(ImageProcessor colorcode){
+        if(this.truth.getNSlices()==1){
+            ImagePlus tmp = new ImagePlus("composite_"+this.truth.getTitle()+"_VS_"+this.test.getTitle(),
+                    displayCombinationProcessor(this.truth.getProcessor(),this.test.getProcessor(),colorcode));
             //if(lutcomposite!=null) tmp.setLut(lutcomposite);
             return tmp;
         }
-        ImageStack is1=truth.getImageStack();
-        ImageStack is2=test.getImageStack();
+        ImageStack is1=this.truth.getImageStack();
+        ImageStack is2=this.test.getImageStack();
         ImageStack result=new ImageStack(is1.getWidth(),is1.getHeight());
-        for(int z=0;z<truth.getNSlices();z++){
+        for(int z=0;z<this.truth.getNSlices();z++){
             result.addSlice(displayCombinationProcessor(is1.getProcessor(z+1),
                     is2.getProcessor(z+1),colorcode));
         }
-        ImagePlus tmp = new ImagePlus("composite_"+truth.getTitle()+"_VS_"+test.getTitle(),result);
+        ImagePlus tmp = new ImagePlus("composite_"+this.truth.getTitle()+"_VS_"+this.test.getTitle(),result);
         //if(lutcomposite!=null) tmp.setLut(lutcomposite);
         return tmp;
     }
@@ -183,5 +213,157 @@ public class IoUAnalysis {
 
         return result;
     }
+
+
+    private void checkPositionAndSize(
+            ImageProcessor iou,
+            int[] histoTruth,
+            int[] histoTest,
+            double minSize,
+            double minDist,
+            ImagePlus truth,
+            ImagePlus test
+    ) {
+        // Check object size
+        for (int y = 0; y < iou.getHeight(); y++) {
+            for (int x = 0; x < iou.getWidth(); x++) {
+
+                boolean truthTooSmall =
+                        x >= 0 &&
+                                x < histoTruth.length &&
+                                histoTruth[x] < minSize;
+
+                boolean testTooSmall =
+                        y >= 0 &&
+                                y < histoTest.length &&
+                                histoTest[y] < minSize;
+
+                if (truthTooSmall || testTooSmall) {
+                    iou.setf(x, y, -1);
+                }
+            }
+        }
+
+        // Check object distance to border
+        if (minDist < 0) return;
+
+        ArrayList<Integer> borderTruth = new ArrayList<>();
+
+        ImageStack truthStack = truth.getImageStack();
+
+        for (int z = 1; z <= truthStack.getSize(); z++) {
+            borderTruth.addAll(
+                    objectBorder(
+                            truthStack.getProcessor(z),
+                            minDist
+                    )
+            );
+        }
+
+        Set<Integer> truthSet = new HashSet<>(borderTruth);
+        borderTruth = new ArrayList<>(truthSet);
+
+        ArrayList<Integer> borderTest = new ArrayList<>();
+
+        ImageStack testStack = test.getImageStack();
+
+        for (int z = 1; z <= testStack.getSize(); z++) {
+            borderTest.addAll(
+                    objectBorder(
+                            testStack.getProcessor(z),
+                            minDist
+                    )
+            );
+        }
+
+        Set<Integer> testSet = new HashSet<>(borderTest);
+        borderTest = new ArrayList<>(testSet);
+
+        removefromIoU(iou, borderTruth, borderTest);
+    }
+
+    private ArrayList<Integer> objectBorder(ImageProcessor ip, double minDist) {
+
+        ArrayList<Integer> border = new ArrayList<>();
+
+        int dist = (int) Math.round(minDist);
+
+        dist = Math.max(0, dist);
+        dist = Math.min(dist, Math.min(ip.getWidth(), ip.getHeight()) - 1);
+
+        for (int x = 0; x < ip.getWidth(); x++) {
+            for (int y = 0; y <= dist; y++) {
+
+                float v1 = ip.getf(x, y);
+                float v2 = ip.getf(x, ip.getHeight() - 1 - y);
+
+                if (v1 > 0) border.add((int) v1);
+                if (v2 > 0) border.add((int) v2);
+            }
+        }
+
+        for (int y = 0; y < ip.getHeight(); y++) {
+            for (int x = 0; x <= dist; x++) {
+
+                float v1 = ip.getf(x, y);
+                float v2 = ip.getf(ip.getWidth() - 1 - x, y);
+
+                if (v1 > 0) border.add((int) v1);
+                if (v2 > 0) border.add((int) v2);
+            }
+        }
+
+        Set<Integer> set = new HashSet<>(border);
+        return new ArrayList<>(set);
+    }
+
+    private void removefromIoU(
+            ImageProcessor iou,
+            ArrayList<Integer> borderTruth,
+            ArrayList<Integer> borderTest
+    ) {
+        for (Integer bt : borderTruth) {
+
+            if (bt == null) continue;
+
+            int truthLabel = bt;
+
+            if (truthLabel <= 0 || truthLabel >= iou.getWidth()) {
+                IJ.log(
+                        "Warning: truth border label " +
+                                truthLabel +
+                                " ignored because IoU width is " +
+                                iou.getWidth()
+                );
+                continue;
+            }
+
+            for (int y = 0; y < iou.getHeight(); y++) {
+                iou.setf(truthLabel, y, -1);
+            }
+        }
+
+        for (Integer bt : borderTest) {
+
+            if (bt == null) continue;
+
+            int testLabel = bt;
+
+            if (testLabel <= 0 || testLabel >= iou.getHeight()) {
+                IJ.log(
+                        "Warning: test border label " +
+                                testLabel +
+                                " ignored because IoU height is " +
+                                iou.getHeight()
+                );
+                continue;
+            }
+
+            for (int x = 0; x < iou.getWidth(); x++) {
+                iou.setf(x, testLabel, -1);
+            }
+        }
+    }
+
 
 }
