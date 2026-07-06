@@ -91,6 +91,7 @@ public class MicUtils {
             for(int x=0;x<histo2D.getWidth();x++){
                 double val = histo2D.get(x,y);
                 val/=(histoTruth[x]+histoTest[y]-val);
+                if(val>1) val=1;
                 fp.setf(x,y,(float)val);
             }
         }

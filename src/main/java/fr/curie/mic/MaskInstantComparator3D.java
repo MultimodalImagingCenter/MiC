@@ -169,17 +169,18 @@ public class MaskInstantComparator3D implements PlugIn {
                 double[] jaccards=new double[nbcomp];
                 double[] dscs=new double[nbcomp];
                 int index=0;
-                for(double th=overlapMin; th<=overlapMax+EPSILON; th+=overlapInc){
+                for(int th=(int)(overlapMin*10000); th<=(int)((overlapMax+EPSILON)*10000); th+=(int)(overlapInc*10000)){
                     if(pixelObjectResultsTable.getCounter()>0) pixelObjectResultsTable.incrementCounter();
-                    double[] metrics = objectAnalysis(iou, th);
-                    ious[index]=th;
+                    double qth=th/10000.0;
+                    double[] metrics = objectAnalysis(iou, qth);
+                    ious[index]=qth;
                     precisions[index]=metrics[3];
                     sensitivities[index]=metrics[4];
                     jaccards[index]=metrics[5];
                     dscs[index]=metrics[6];
                     //IJ.log("index:"+index+" , iou:"+ious[index]+" , jaccard:"+jaccards[index]);
                     index++;
-                    addToResultTable(pixelObjectResultsTable, "Object",metrics[0],metrics[1],metrics[2],metrics[3],metrics[4],metrics[5],metrics[6],th);
+                    addToResultTable(pixelObjectResultsTable, "Object",metrics[0],metrics[1],metrics[2],metrics[3],metrics[4],metrics[5],metrics[6],qth);
                 }
                 if(showGraphs) createGraphs(truthMaskIP.getShortTitle()+"_VS_"+testMaskIP.getShortTitle()+"_IoU_graph",ious,precisions,sensitivities,jaccards,dscs);
 
@@ -691,12 +692,13 @@ public class MaskInstantComparator3D implements PlugIn {
             iou.getRow(0,y,row,iou.getWidth());
             int found=0;
             for(int x=1;x<iou.getWidth();x++){
-                if(row[x]>threshold) found++;
+                if(row[x]>=threshold) found++;
             }
             switch (found){
                 case 0: if(row[0]>0)fp++; break;
                 case 1: tp++; break;
-                default: tp++; IJ.log("object "+y + "in test as "+ found +" correspondances");
+                default: tp++;
+                IJ.log("object "+y + "in test as "+ found +" correspondances");
             }
         }
         row=null;
