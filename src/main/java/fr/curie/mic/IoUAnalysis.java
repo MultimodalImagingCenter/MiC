@@ -7,66 +7,36 @@ import ij.process.ByteProcessor;
 import ij.process.ImageProcessor;
 import ij.process.LUT;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 
 public class IoUAnalysis {
 
+    protected static final int TP_COLOR_INDEX = 1;
+    protected static final int TP_OVER_COLOR_INDEX = 2;
+    protected static final int TP_UNDER_COLOR_INDEX = 3;
+    protected static final int FUSED_COLOR_INDEX = 4;
+    protected static final int SPLIT_COLOR_INDEX = 5;
+    protected static final int UNDER_IOU_COLOR_INDEX = 6;
+    protected static final int UNDER_IOU_EXT_COLOR_INDEX = 7;
+    protected static final int FP_COLOR_INDEX = 8;
+    protected static final int FN_COLOR_INDEX = 9;
+    protected static final int NOT_ANALYZED_COLOR_INDEX = 10;
     private final ImagePlus truth;
     private final ImagePlus test;
-
     private final ImageProcessor iou;
+    private final int maxTruth;
+    private final int maxTest;
+    private final HashMap<Double, ImageProcessor> colorCodeCache = new HashMap<>();
+    private final ImageProcessor histo2D;
 
 
-    private double EPSILON = 1E-7;
-
-    protected static final int TP_COLOR_INDEX=1;
-    protected static final int TP_OVER_COLOR_INDEX=2;
-    protected static final int TP_UNDER_COLOR_INDEX=3;
-    protected static final int FUSED_COLOR_INDEX=4;
-    protected static final int SPLIT_COLOR_INDEX=5;
-    protected static final int UNDER_IOU_COLOR_INDEX=6;
-    protected static final int UNDER_IOU_EXT_COLOR_INDEX=7;
-    protected static final int FP_COLOR_INDEX=8;
-    protected static final int FN_COLOR_INDEX=9;
-    protected static final int NOT_ANALYZED_COLOR_INDEX=10;
-
-
-
-    public IoUAnalysis(
-            ImagePlus truth,
-            ImagePlus test,
-            ImageProcessor iou
-    ) {
+    public IoUAnalysis(ImagePlus truth, ImagePlus test, ImageProcessor histo2D, ImageProcessor iou, int maxTruth, int maxTest) {
         this.truth = truth;
         this.test = test;
+        this.histo2D = histo2D;
         this.iou = iou;
-    }
-
-    public IoUAnalysis(
-            ImagePlus truth,
-            ImagePlus test,
-            ImageProcessor iou,
-            int[] histoTruth,
-            int[] histoTest,
-            double minSize,
-            double minDist
-    ) {
-        this.truth = truth;
-        this.test = test;
-        this.iou = iou;
-
-        checkPositionAndSize(
-                iou,
-                histoTruth,
-                histoTest,
-                minSize,
-                minDist,
-                truth,
-                test
-        );
+        this.maxTruth = maxTruth;
+        this.maxTest = maxTest;
     }
 
     public static IoUAnalysis create(
@@ -109,12 +79,7 @@ public class IoUAnalysis {
                         histoTest
                 );
 
-        IoUAnalysis result =
-                new IoUAnalysis(
-                        truth,
-                        test,
-                        iou
-                );
+        IoUAnalysis result = new IoUAnalysis(truth, test, histo2D, iou, maxTruth, maxTest);
 
         result.checkPositionAndSize(
                 iou,
@@ -129,131 +94,7 @@ public class IoUAnalysis {
         return result;
     }
 
-
-    public ImageProcessor getIoU() {
-        return iou;
-    }
-
-    public Metrics getMetrics(double threshold) {
-        return new Metrics(
-                iou,
-                threshold,
-                null
-        );
-    }
-
-    public Metrics getPixelMetrics() {
-        return new Metrics(
-                iou,
-                -1,
-                null
-        );
-    }
-
-    public ImagePlus getTruth() {
-        return truth;
-    }
-
-    public ImagePlus getTest() {
-        return test;
-    }
-
-    public ImageProcessor getColorCode( double threshold){
-        ByteProcessor bp=new ByteProcessor(this.iou.getWidth(),this.iou.getHeight());
-        float[] row=new float[this.iou.getWidth()];
-        float[] col = new float[this.iou.getHeight()];
-        for(int y=1;y<this.iou.getHeight();y++){
-            for(int x=1;x<this.iou.getWidth();x++){
-                double val = this.iou.getf(x,y);
-                if(val==-1){
-                    bp.set(x,y,NOT_ANALYZED_COLOR_INDEX);
-                }else if(val>=threshold){
-                    bp.set(x,y,TP_COLOR_INDEX);
-                }else{
-                    Arrays.fill(row,0);
-                    this.iou.getRow(1,y,row,this.iou.getWidth()-1);
-                    Arrays.sort(row);
-                    Arrays.fill(col,0);
-                    this.iou.getColumn(x,1,col,this.iou.getHeight()-1);
-                    Arrays.sort(col);
-                    if(col[col.length-1]>threshold){
-                        bp.set(x,y,SPLIT_COLOR_INDEX);
-                    } else if(row[row.length-1]>threshold){
-                        bp.set(x,y,FUSED_COLOR_INDEX);
-                    } else bp.set(x,y,UNDER_IOU_COLOR_INDEX);
-                }
-            }
-        }
-        for(int y=1;y<this.iou.getHeight();y++){
-            if(this.iou.getf(0,y)<0) bp.set(0,y,NOT_ANALYZED_COLOR_INDEX);
-            else {
-                this.iou.getRow(0, y, row, this.iou.getWidth());
-                int foundTP = 0;
-                int foundIoU = 0;
-                for (int x = 1; x < this.iou.getWidth(); x++) {
-                    if (row[x] > threshold) foundTP++;
-                    else if (row[x] > 0 && row[x] < threshold) foundIoU++;
-                }
-                if (foundTP > 0) bp.set(0, y, TP_OVER_COLOR_INDEX);
-                else if (foundIoU > 0) bp.set(0, y, UNDER_IOU_EXT_COLOR_INDEX);
-                else bp.set(0, y, FP_COLOR_INDEX);
-            }
-        }
-        row=null;
-        for(int x=1;x<this.iou.getWidth();x++){
-            if(this.iou.getf(x,0)<0) bp.set(x,0,NOT_ANALYZED_COLOR_INDEX);
-            else {
-                this.iou.getColumn(x, 0, col, this.iou.getHeight());
-                int foundTP = 0;
-                int foundIoU = 0;
-                for (int y = 1; y < this.iou.getHeight(); y++) {
-                    if (col[y] > threshold) foundTP++;
-                    else if (col[y] > 0 && col[y] < threshold) foundIoU++;
-                }
-                if (foundTP > 0) bp.set(x, 0, TP_UNDER_COLOR_INDEX);
-                else if (foundIoU > 0) bp.set(x, 0, UNDER_IOU_EXT_COLOR_INDEX);
-                else bp.set(x, 0, FN_COLOR_INDEX);
-            }
-        }
-
-        return bp;
-    }
-
-    public ImageProcessor createCompositePlane(
-            ImageProcessor truthPlane,
-            ImageProcessor testPlane,
-            double threshold
-    ) {
-        ImageProcessor colorcode =
-                getColorCode(threshold);
-
-        return displayCombinationProcessor(
-                truthPlane,
-                testPlane,
-                colorcode
-        );
-    }
-
-    protected ImagePlus displayCombination(ImageProcessor colorcode){
-        if(this.truth.getNSlices()==1){
-            ImagePlus tmp = new ImagePlus("composite_"+this.truth.getTitle()+"_VS_"+this.test.getTitle(),
-                    displayCombinationProcessor(this.truth.getProcessor(),this.test.getProcessor(),colorcode));
-            //if(lutcomposite!=null) tmp.setLut(lutcomposite);
-            return tmp;
-        }
-        ImageStack is1=this.truth.getImageStack();
-        ImageStack is2=this.test.getImageStack();
-        ImageStack result=new ImageStack(is1.getWidth(),is1.getHeight());
-        for(int z=0;z<this.truth.getNSlices();z++){
-            result.addSlice(displayCombinationProcessor(is1.getProcessor(z+1),
-                    is2.getProcessor(z+1),colorcode));
-        }
-        ImagePlus tmp = new ImagePlus("composite_"+this.truth.getTitle()+"_VS_"+this.test.getTitle(),result);
-        //if(lutcomposite!=null) tmp.setLut(lutcomposite);
-        return tmp;
-    }
-
-    public static ImageProcessor displayCombinationProcessor(ImageProcessor truth, ImageProcessor test, ImageProcessor colorcode ) {
+    public static ImageProcessor displayCombinationProcessor(ImageProcessor truth, ImageProcessor test, ImageProcessor colorcode) {
         ByteProcessor result = new ByteProcessor(
                 truth.getWidth(),
                 truth.getHeight()
@@ -288,6 +129,177 @@ public class IoUAnalysis {
         return result;
     }
 
+    public static LUT getMiCLUT() {
+        byte[] r = new byte[256];
+        byte[] g = new byte[256];
+        byte[] b = new byte[256];
+        //TP (yellow)
+        r[1] = (byte) 255;
+        g[1] = (byte) 255;
+        b[1] = (byte) 0;
+        //TP OVER (red)
+        r[2] = (byte) 255;
+        g[2] = (byte) 0;
+        b[2] = (byte) 0;
+        //TP under (green)
+        r[3] = (byte) 0;
+        g[3] = (byte) 255;
+        b[3] = (byte) 0;
+        //fused (orange)
+        r[4] = (byte) 255;
+        g[4] = (byte) 128;
+        b[4] = (byte) 0;
+        //split (cyan)
+        r[5] = (byte) 0;
+        g[5] = (byte) 255;
+        b[5] = (byte) 255;
+        //IoU under (blue)
+        r[6] = (byte) 0;
+        g[6] = (byte) 0;
+        b[6] = (byte) 255;
+        //IoU under_ext (purple)
+        r[7] = (byte) 128;
+        g[7] = (byte) 0;
+        b[7] = (byte) 255;
+        //FP (dark red)
+        r[8] = (byte) 128;
+        g[8] = (byte) 0;
+        b[8] = (byte) 0;
+        //FN (dark green)
+        r[9] = (byte) 0;
+        g[9] = (byte) 128;
+        b[9] = (byte) 0;
+        //Not Analyzed (grey)
+        r[10] = (byte) 128;
+        g[10] = (byte) 128;
+        b[10] = (byte) 128;
+
+        return new LUT(r, g, b);
+    }
+
+    public ImageProcessor getIoU() {
+        return iou;
+    }
+
+    public ImageProcessor getHisto2D() {
+        return histo2D;
+    }
+
+    public Metrics getMetrics(double threshold) {
+        return new Metrics(
+                iou,
+                threshold,
+                null
+        );
+    }
+
+    public Metrics getPixelMetrics() {
+        return new Metrics(
+                histo2D,
+                -1,
+                null
+        );
+    }
+
+    public ImagePlus getTruth() {
+        return truth;
+    }
+
+    public ImagePlus getTest() {
+        return test;
+    }
+
+    public int getMaxTruth() {
+        return maxTruth;
+    }
+
+    public int getMaxTest() {
+        return maxTest;
+    }
+
+    public ImageProcessor getColorCode(double threshold) {
+        ImageProcessor cached = colorCodeCache.get(threshold);
+        if (cached != null) return cached;
+        ImageProcessor generated = computeColorCode(threshold);
+        colorCodeCache.put(threshold, generated);
+        return generated;
+    }
+
+    public ImageProcessor computeColorCode(double threshold) {
+        ByteProcessor bp = new ByteProcessor(this.iou.getWidth(), this.iou.getHeight());
+        float[] row = new float[this.iou.getWidth()];
+        float[] col = new float[this.iou.getHeight()];
+        for (int y = 1; y < this.iou.getHeight(); y++) {
+            for (int x = 1; x < this.iou.getWidth(); x++) {
+                double val = this.iou.getf(x, y);
+                if (val == -1) {
+                    bp.set(x, y, NOT_ANALYZED_COLOR_INDEX);
+                } else if (val >= threshold) {
+                    bp.set(x, y, TP_COLOR_INDEX);
+                } else {
+                    Arrays.fill(row, 0);
+                    this.iou.getRow(1, y, row, this.iou.getWidth() - 1);
+                    Arrays.sort(row);
+                    Arrays.fill(col, 0);
+                    this.iou.getColumn(x, 1, col, this.iou.getHeight() - 1);
+                    Arrays.sort(col);
+                    if (col[col.length - 1] > threshold) {
+                        bp.set(x, y, SPLIT_COLOR_INDEX);
+                    } else if (row[row.length - 1] > threshold) {
+                        bp.set(x, y, FUSED_COLOR_INDEX);
+                    } else bp.set(x, y, UNDER_IOU_COLOR_INDEX);
+                }
+            }
+        }
+        for (int y = 1; y < this.iou.getHeight(); y++) {
+            if (this.iou.getf(0, y) < 0) bp.set(0, y, NOT_ANALYZED_COLOR_INDEX);
+            else {
+                this.iou.getRow(0, y, row, this.iou.getWidth());
+                int foundTP = 0;
+                int foundIoU = 0;
+                for (int x = 1; x < this.iou.getWidth(); x++) {
+                    if (row[x] > threshold) foundTP++;
+                    else if (row[x] > 0 && row[x] < threshold) foundIoU++;
+                }
+                if (foundTP > 0) bp.set(0, y, TP_OVER_COLOR_INDEX);
+                else if (foundIoU > 0) bp.set(0, y, UNDER_IOU_EXT_COLOR_INDEX);
+                else bp.set(0, y, FP_COLOR_INDEX);
+            }
+        }
+        row = null;
+        for (int x = 1; x < this.iou.getWidth(); x++) {
+            if (this.iou.getf(x, 0) < 0) bp.set(x, 0, NOT_ANALYZED_COLOR_INDEX);
+            else {
+                this.iou.getColumn(x, 0, col, this.iou.getHeight());
+                int foundTP = 0;
+                int foundIoU = 0;
+                for (int y = 1; y < this.iou.getHeight(); y++) {
+                    if (col[y] > threshold) foundTP++;
+                    else if (col[y] > 0 && col[y] < threshold) foundIoU++;
+                }
+                if (foundTP > 0) bp.set(x, 0, TP_UNDER_COLOR_INDEX);
+                else if (foundIoU > 0) bp.set(x, 0, UNDER_IOU_EXT_COLOR_INDEX);
+                else bp.set(x, 0, FN_COLOR_INDEX);
+            }
+        }
+
+        return bp;
+    }
+
+    public ImageProcessor createCompositePlane(
+            ImageProcessor truthPlane,
+            ImageProcessor testPlane,
+            double threshold
+    ) {
+        ImageProcessor colorcode =
+                getColorCode(threshold);
+
+        return displayCombinationProcessor(
+                truthPlane,
+                testPlane,
+                colorcode
+        );
+    }
 
     private void checkPositionAndSize(
             ImageProcessor iou,
@@ -437,54 +449,6 @@ public class IoUAnalysis {
                 iou.setf(x, testLabel, -1);
             }
         }
-    }
-
-    public static LUT getMiCLUT(){
-        byte[] r=new byte[256];
-        byte[] g=new byte[256];
-        byte[] b=new byte[256];
-        //TP (yellow)
-        r[1]=(byte)255;
-        g[1]=(byte)255;
-        b[1]=(byte)0;
-        //TP OVER (red)
-        r[2]=(byte)255;
-        g[2]=(byte)0;
-        b[2]=(byte)0;
-        //TP under (green)
-        r[3]=(byte)0;
-        g[3]=(byte)255;
-        b[3]=(byte)0;
-        //fused (orange)
-        r[4]=(byte)255;
-        g[4]=(byte)128;
-        b[4]=(byte)0;
-        //split (cyan)
-        r[5]=(byte)0;
-        g[5]=(byte)255;
-        b[5]=(byte)255;
-        //IoU under (blue)
-        r[6]=(byte)0;
-        g[6]=(byte)0;
-        b[6]=(byte)255;
-        //IoU under_ext (purple)
-        r[7]=(byte)128;
-        g[7]=(byte)0;
-        b[7]=(byte)255;
-        //FP (dark red)
-        r[8]=(byte)128;
-        g[8]=(byte)0;
-        b[8]=(byte)0;
-        //FN (dark green)
-        r[9]=(byte)0;
-        g[9]=(byte)128;
-        b[9]=(byte)0;
-        //Not Analyzed (grey)
-        r[10]=(byte)128;
-        g[10]=(byte)128;
-        b[10]=(byte)128;
-
-        return new LUT(r,g,b);
     }
 
 }

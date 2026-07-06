@@ -160,8 +160,15 @@ public class MaskInstantComparator3D implements PlugIn {
     }
 
     public boolean analysis3D(int channel, int frame){
-        int maxTruth = MicUtils.correctObjectNumbering(truthMaskIP);
-        int maxTest = MicUtils.correctObjectNumbering(testMaskIP);
+        IoUAnalysis analysis =
+                IoUAnalysis.create(
+                        truthMaskIP,
+                        testMaskIP,
+                        minSize,
+                        minDist
+                );
+        int maxTruth = analysis.getMaxTruth();
+        int maxTest = analysis.getMaxTest();
 
         IJ.log("Truth has "+maxTruth+" objects");
         IJ.log("Test has "+maxTest+" objects");
@@ -175,11 +182,13 @@ public class MaskInstantComparator3D implements PlugIn {
         resultsTable.addValue("Test objects", maxTest);
 
         //compute histogram 2D to get correspondance between two images
-        ImageProcessor histo2D = MicUtils.histo2D(truthMaskIP,maxTruth,testMaskIP,maxTest);
+        //ImageProcessor histo2D = MicUtils.histo2D(truthMaskIP,maxTruth,testMaskIP,maxTest);
+
         //pixel analysis
         if(pixelMethod) {
             //pixelAnalysis(histo2D);
-            Metrics metrics = new Metrics(histo2D, -1, null);
+            //Metrics metrics = new Metrics(histo2D, -1, null);
+            Metrics metrics = analysis.getPixelMetrics();
             addToResultTable(resultsTable, "Pixel", metrics.getTP(), metrics.getFP(), metrics.getFN(),
                     metrics.getPrecision(), metrics.getSensitivity(), metrics.getJaccardIndex(), metrics.getF1measure(), -1);
         }
@@ -195,7 +204,7 @@ public class MaskInstantComparator3D implements PlugIn {
             //IJ.log("compute ious");
             //ImageProcessor iou = MicUtils.computesIoUs(histo2D, histoTruth, histoTest);
             //IoUAnalysis analysis = computeIoUForVolumes(truthMaskIP, testMaskIP);
-            IoUAnalysis analysis = IoUAnalysis.create(truthMaskIP,testMaskIP,minSize,minDist);
+            //IoUAnalysis analysis = IoUAnalysis.create(truthMaskIP,testMaskIP,minSize,minDist);
             //checkPositionAndSize(iou,histoTruth,histoTest,minSize,minDist,truthMaskIP,testMaskIP);
             if(showCorrespondances) new ImagePlus("objects_correspondance_X_Truth_Y_Test",analysis.getIoU()).show();
             if(objectMethod) {
