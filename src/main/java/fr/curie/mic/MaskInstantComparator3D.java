@@ -104,7 +104,7 @@ public class MaskInstantComparator3D implements PlugIn {
             pixelObjectResultsTable = new ResultsTable();
         }
 
-        if(showComposite) lutcomposite = getMiCLUT();
+        if(showComposite) lutcomposite = IoUAnalysis.getMiCLUT();
         analysis();
 
         resultsTable.show("Mask comparison results");
@@ -319,53 +319,6 @@ public class MaskInstantComparator3D implements PlugIn {
         return result;
     }
 
-    public static LUT getMiCLUT(){
-        byte[] r=new byte[256];
-        byte[] g=new byte[256];
-        byte[] b=new byte[256];
-        //TP (yellow)
-        r[1]=(byte)255;
-        g[1]=(byte)255;
-        b[1]=(byte)0;
-        //TP OVER (red)
-        r[2]=(byte)255;
-        g[2]=(byte)0;
-        b[2]=(byte)0;
-        //TP under (green)
-        r[3]=(byte)0;
-        g[3]=(byte)255;
-        b[3]=(byte)0;
-        //fused (orange)
-        r[4]=(byte)255;
-        g[4]=(byte)128;
-        b[4]=(byte)0;
-        //split (cyan)
-        r[5]=(byte)0;
-        g[5]=(byte)255;
-        b[5]=(byte)255;
-        //IoU under (blue)
-        r[6]=(byte)0;
-        g[6]=(byte)0;
-        b[6]=(byte)255;
-        //IoU under_ext (purple)
-        r[7]=(byte)128;
-        g[7]=(byte)0;
-        b[7]=(byte)255;
-        //FP (dark red)
-        r[8]=(byte)128;
-        g[8]=(byte)0;
-        b[8]=(byte)0;
-        //FN (dark green)
-        r[9]=(byte)0;
-        g[9]=(byte)128;
-        b[9]=(byte)0;
-        //Not Analyzed (grey)
-        r[10]=(byte)128;
-        g[10]=(byte)128;
-        b[10]=(byte)128;
-
-        return new LUT(r,g,b);
-    }
 
     private double[] getCompositeIoUThresholds() {
 
@@ -420,7 +373,7 @@ public class MaskInstantComparator3D implements PlugIn {
         int nFrames = originalTruth.getNFrames();
 
         if (lutcomposite == null) {
-            lutcomposite = getMiCLUT();
+            lutcomposite = IoUAnalysis.getMiCLUT();
         }
 
         for (int originalChannel = 1; originalChannel <= nOriginalChannels; originalChannel++) {
@@ -437,11 +390,7 @@ public class MaskInstantComparator3D implements PlugIn {
                 //ImageProcessor iou = computeIoUForVolumes(truthVolume, testVolume);
                 //IoUAnalysis analysis = computeIoUForVolumes(truthVolume, testVolume);
                 IoUAnalysis analysis = IoUAnalysis.create(truthVolume,testVolume,minSize,minDist);
-                ImageProcessor[] colorcodes = new ImageProcessor[thresholds.length];
 
-                for (int thresholdIndex = 0; thresholdIndex < thresholds.length; thresholdIndex++) {
-                    colorcodes[thresholdIndex] = analysis.getColorCode(thresholds[thresholdIndex] );
-                }
 
                 ImageStack truthStack = truthVolume.getImageStack();
                 ImageStack testStack = testVolume.getImageStack();
@@ -453,10 +402,8 @@ public class MaskInstantComparator3D implements PlugIn {
 
                     for (int thresholdIndex = 0; thresholdIndex < thresholds.length; thresholdIndex++) {
 
-                        ImageProcessor compositePlane = IoUAnalysis.displayCombinationProcessor(
-                                truthProcessor,
-                                testProcessor,
-                                colorcodes[thresholdIndex]
+                        ImageProcessor compositePlane = analysis.createCompositePlane(truthProcessor,testProcessor,
+                                thresholds[thresholdIndex]
                         );
 
                         String label =

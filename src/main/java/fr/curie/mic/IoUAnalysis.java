@@ -219,6 +219,21 @@ public class IoUAnalysis {
         return bp;
     }
 
+    public ImageProcessor createCompositePlane(
+            ImageProcessor truthPlane,
+            ImageProcessor testPlane,
+            double threshold
+    ) {
+        ImageProcessor colorcode =
+                getColorCode(threshold);
+
+        return displayCombinationProcessor(
+                truthPlane,
+                testPlane,
+                colorcode
+        );
+    }
+
     protected ImagePlus displayCombination(ImageProcessor colorcode){
         if(this.truth.getNSlices()==1){
             ImagePlus tmp = new ImagePlus("composite_"+this.truth.getTitle()+"_VS_"+this.test.getTitle(),
@@ -424,5 +439,52 @@ public class IoUAnalysis {
         }
     }
 
+    public static LUT getMiCLUT(){
+        byte[] r=new byte[256];
+        byte[] g=new byte[256];
+        byte[] b=new byte[256];
+        //TP (yellow)
+        r[1]=(byte)255;
+        g[1]=(byte)255;
+        b[1]=(byte)0;
+        //TP OVER (red)
+        r[2]=(byte)255;
+        g[2]=(byte)0;
+        b[2]=(byte)0;
+        //TP under (green)
+        r[3]=(byte)0;
+        g[3]=(byte)255;
+        b[3]=(byte)0;
+        //fused (orange)
+        r[4]=(byte)255;
+        g[4]=(byte)128;
+        b[4]=(byte)0;
+        //split (cyan)
+        r[5]=(byte)0;
+        g[5]=(byte)255;
+        b[5]=(byte)255;
+        //IoU under (blue)
+        r[6]=(byte)0;
+        g[6]=(byte)0;
+        b[6]=(byte)255;
+        //IoU under_ext (purple)
+        r[7]=(byte)128;
+        g[7]=(byte)0;
+        b[7]=(byte)255;
+        //FP (dark red)
+        r[8]=(byte)128;
+        g[8]=(byte)0;
+        b[8]=(byte)0;
+        //FN (dark green)
+        r[9]=(byte)0;
+        g[9]=(byte)128;
+        b[9]=(byte)0;
+        //Not Analyzed (grey)
+        r[10]=(byte)128;
+        g[10]=(byte)128;
+        b[10]=(byte)128;
+
+        return new LUT(r,g,b);
+    }
 
 }
