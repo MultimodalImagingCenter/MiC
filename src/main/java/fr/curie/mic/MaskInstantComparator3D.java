@@ -39,24 +39,13 @@ import java.awt.event.ItemEvent;
 import java.awt.event.ItemListener;
 import java.io.File;
 import java.util.*;
+import ij.CompositeImage;
 
 public class MaskInstantComparator3D implements PlugIn {
     //    Binary images to compare
     private ImagePlus truthMaskIP;
     private ImagePlus testMaskIP;
 
-    private double EPSILON = 1E-7;
-
-    protected static final int TP_COLOR_INDEX=1;
-    protected static final int TP_OVER_COLOR_INDEX=2;
-    protected static final int TP_UNDER_COLOR_INDEX=3;
-    protected static final int FUSED_COLOR_INDEX=4;
-    protected static final int SPLIT_COLOR_INDEX=5;
-    protected static final int UNDER_IOU_COLOR_INDEX=6;
-    protected static final int UNDER_IOU_EXT_COLOR_INDEX=7;
-    protected static final int FP_COLOR_INDEX=8;
-    protected static final int FN_COLOR_INDEX=9;
-    protected static final int NOT_ANALYZED_COLOR_INDEX=10;
 
 
     //composite image created in results
@@ -87,7 +76,10 @@ public class MaskInstantComparator3D implements PlugIn {
     private boolean showComposite;
     private boolean showCorrespondances;
     private PlotVirtualStack plotStack;
+
     private LUT lutcomposite;
+    private double EPSILON = 1E-7;
+
     @Override
     public void run(String arg) {
         boolean useOpenImages=WindowManager.getImageCount() > 0;
@@ -103,11 +95,11 @@ public class MaskInstantComparator3D implements PlugIn {
             resultsTable = new ResultsTable();
         } else {
             resultsTable = rt;
-            resultsTable.incrementCounter();
+            //resultsTable.incrementCounter();
         }
         if(rt2!=null){
             pixelObjectResultsTable=rt2;
-            pixelObjectResultsTable.incrementCounter();
+            //pixelObjectResultsTable.incrementCounter();
         }else{
             pixelObjectResultsTable = new ResultsTable();
         }
@@ -120,8 +112,54 @@ public class MaskInstantComparator3D implements PlugIn {
 
 
     }
+    public boolean analysis() {
 
-    public boolean analysis(){
+        if (truthMaskIP == null || testMaskIP == null) {
+            IJ.error("Truth or test image is null.");
+            return false;
+        }
+
+        if (!checkHyperstackCompatibility(truthMaskIP, testMaskIP)) {
+            return false;
+        }
+
+        ImagePlus originalTruth = truthMaskIP;
+        ImagePlus originalTest = testMaskIP;
+
+        int nChannels = originalTruth.getNChannels();
+        int nFrames = originalTruth.getNFrames();
+
+        boolean ok = true;
+
+        for (int t = 1; t <= nFrames; t++) {
+            for (int c = 1; c <= nChannels; c++) {
+
+                IJ.log("Analyzing channel " + c + ", frame " + t);
+
+                ImagePlus truthSubVolume = extractCZVolume(originalTruth, c, t);
+                ImagePlus testSubVolume = extractCZVolume(originalTest, c, t);
+
+                truthMaskIP = truthSubVolume;
+                testMaskIP = testSubVolume;
+
+                resultsTable.incrementCounter();
+
+                boolean currentOk = analysis3D(c, t);
+                ok = ok && currentOk;
+            }
+        }
+
+        truthMaskIP = originalTruth;
+        testMaskIP = originalTest;
+
+        if (showComposite && (objectMethod || pixelObjectMethod)) {
+            buildAndShowCompositeHyperstacks(originalTruth, originalTest);
+        }
+
+        return ok;
+    }
+
+    public boolean analysis3D(int channel, int frame){
         int maxTruth = MicUtils.correctObjectNumbering(truthMaskIP);
         int maxTest = MicUtils.correctObjectNumbering(testMaskIP);
 
@@ -131,13 +169,20 @@ public class MaskInstantComparator3D implements PlugIn {
 
         resultsTable.addValue("Truth image", truthMaskIP.getTitle());
         resultsTable.addValue("Test image", testMaskIP.getTitle());
+        resultsTable.addValue("Channel", channel);
+        resultsTable.addValue("Frame", frame);
         resultsTable.addValue("Truth objects", maxTruth);
         resultsTable.addValue("Test objects", maxTest);
 
         //compute histogram 2D to get correspondance between two images
         ImageProcessor histo2D = MicUtils.histo2D(truthMaskIP,maxTruth,testMaskIP,maxTest);
         //pixel analysis
-        if(pixelMethod) pixelAnalysis(histo2D);
+        if(pixelMethod) {
+            //pixelAnalysis(histo2D);
+            Metrics metrics = new Metrics(histo2D, -1, null);
+            addToResultTable(resultsTable, "Pixel", metrics.getTP(), metrics.getFP(), metrics.getFN(),
+                    metrics.getPrecision(), metrics.getSensitivity(), metrics.getJaccardIndex(), metrics.getF1measure(), -1);
+        }
 
         //object based analysis
         if(objectMethod || pixelObjectMethod) {
@@ -148,18 +193,21 @@ public class MaskInstantComparator3D implements PlugIn {
             int[] histoTest=MicUtils.histo1D(testMaskIP,maxTest);
             //compute IoUs for each objects
             //IJ.log("compute ious");
-            ImageProcessor iou = MicUtils.computesIoUs(histo2D, histoTruth, histoTest);
-            checkPositionAndSize(iou,histoTruth,histoTest,minSize,minDist);
-            if(showCorrespondances) new ImagePlus("objects_correspondance_X_Truth_Y_Test",iou).show();
+            //ImageProcessor iou = MicUtils.computesIoUs(histo2D, histoTruth, histoTest);
+            IoUAnalysis analysis = computeIoUForVolumes(truthMaskIP, testMaskIP);
+            //checkPositionAndSize(iou,histoTruth,histoTest,minSize,minDist,truthMaskIP,testMaskIP);
+            if(showCorrespondances) new ImagePlus("objects_correspondance_X_Truth_Y_Test",analysis.getIoU()).show();
             if(objectMethod) {
-                double[] metrics = objectAnalysis(iou, 0.5);
-                addToResultTable(resultsTable, "Object",metrics[0],metrics[1],metrics[2],metrics[3],metrics[4],metrics[5],metrics[6],0.5);
-                if(showComposite) {
+                //double[] metrics = objectAnalysis(iou, 0.5);
+                Metrics metrics = analysis.getMetrics(0.5);
+                addToResultTable(resultsTable, "Object",metrics.getTP(),metrics.getFP(),metrics.getFN(),
+                        metrics.getPrecision(),metrics.getSensitivity(),metrics.getJaccardIndex(),metrics.getF1measure(),0.5);
+                /*if(showComposite) {
                     ImageProcessor colorcode = convertIoU2ColorCode(iou,0.5);
                     ImagePlus imp = displayCombination(truthMaskIP, testMaskIP, colorcode);
                     imp.setTitle("IoU"+0.5+"_"+imp.getTitle());
                     imp.show();
-                }
+                }*/
             }
             if(pixelObjectMethod){
                 int nbcomp=(int)Math.round((overlapMax-overlapMin)/overlapInc+1);
@@ -172,21 +220,102 @@ public class MaskInstantComparator3D implements PlugIn {
                 for(int th=(int)(overlapMin*10000); th<=(int)((overlapMax+EPSILON)*10000); th+=(int)(overlapInc*10000)){
                     if(pixelObjectResultsTable.getCounter()>0) pixelObjectResultsTable.incrementCounter();
                     double qth=th/10000.0;
-                    double[] metrics = objectAnalysis(iou, qth);
+                    //double[] metrics = objectAnalysis(iou, qth);
+                    Metrics metrics = analysis.getMetrics(qth);
                     ious[index]=qth;
-                    precisions[index]=metrics[3];
-                    sensitivities[index]=metrics[4];
-                    jaccards[index]=metrics[5];
-                    dscs[index]=metrics[6];
+                    precisions[index]=metrics.getPrecision();
+                    sensitivities[index]=metrics.getSensitivity();
+                    jaccards[index]=metrics.getJaccardIndex();
+                    dscs[index]=metrics.getF1measure();
                     //IJ.log("index:"+index+" , iou:"+ious[index]+" , jaccard:"+jaccards[index]);
                     index++;
-                    addToResultTable(pixelObjectResultsTable, "Object",metrics[0],metrics[1],metrics[2],metrics[3],metrics[4],metrics[5],metrics[6],qth);
+                    addToResultTable(pixelObjectResultsTable, "Object",metrics.getTP(),metrics.getFP(),metrics.getFN(),
+                            metrics.getPrecision(),metrics.getSensitivity(),metrics.getJaccardIndex(),metrics.getF1measure(),qth);
                 }
                 if(showGraphs) createGraphs(truthMaskIP.getShortTitle()+"_VS_"+testMaskIP.getShortTitle()+"_IoU_graph",ious,precisions,sensitivities,jaccards,dscs);
 
             }
         }
         return true;
+    }
+    private boolean checkHyperstackCompatibility(ImagePlus truth, ImagePlus test) {
+
+        if (truth.getWidth() != test.getWidth() ||
+                truth.getHeight() != test.getHeight()) {
+
+            IJ.error(
+                    "Truth and test images must have the same width and height."
+            );
+            return false;
+        }
+
+        if (truth.getNChannels() != test.getNChannels()) {
+
+            IJ.error(
+                    "Truth and test images must have the same number of channels.\n" +
+                            "Truth channels: " + truth.getNChannels() + "\n" +
+                            "Test channels: " + test.getNChannels()
+            );
+            return false;
+        }
+
+        if (truth.getNSlices() != test.getNSlices()) {
+
+            IJ.error(
+                    "Truth and test images must have the same number of Z slices.\n" +
+                            "Truth slices: " + truth.getNSlices() + "\n" +
+                            "Test slices: " + test.getNSlices()
+            );
+            return false;
+        }
+
+        if (truth.getNFrames() != test.getNFrames()) {
+
+            IJ.error(
+                    "Truth and test images must have the same number of frames.\n" +
+                            "Truth frames: " + truth.getNFrames() + "\n" +
+                            "Test frames: " + test.getNFrames()
+            );
+            return false;
+        }
+
+        return true;
+    }
+    private ImagePlus extractCZVolume(ImagePlus source, int channel, int frame) {
+
+        int width = source.getWidth();
+        int height = source.getHeight();
+        int nSlices = source.getNSlices();
+
+        ImageStack sourceStack = source.getStack();
+        ImageStack subStack = new ImageStack(width, height);
+
+        for (int z = 1; z <= nSlices; z++) {
+
+            int stackIndex = source.getStackIndex(channel, z, frame);
+
+            ImageProcessor ip = sourceStack
+                    .getProcessor(stackIndex)
+                    .duplicate();
+
+            String label = sourceStack.getSliceLabel(stackIndex);
+            subStack.addSlice(label, ip);
+        }
+
+        String title =
+                source.getShortTitle() +
+                        "_C" + channel +
+                        "_T" + frame;
+
+        ImagePlus result = new ImagePlus(title, subStack);
+
+        result.setDimensions(1, nSlices, 1);
+
+        if (source.getCalibration() != null) {
+            result.setCalibration(source.getCalibration().copy());
+        }
+
+        return result;
     }
 
     public static LUT getMiCLUT(){
@@ -235,6 +364,182 @@ public class MaskInstantComparator3D implements PlugIn {
         b[10]=(byte)128;
 
         return new LUT(r,g,b);
+    }
+
+    private double[] getCompositeIoUThresholds() {
+
+        LinkedHashMap<Integer, Double> thresholds = new LinkedHashMap<>();
+
+        if (objectMethod) {
+            thresholds.put(5000, 0.5);
+        }
+
+        if (pixelObjectMethod) {
+            int start = (int) Math.round(overlapMin * 10000.0);
+            int end = (int) Math.round(overlapMax * 10000.0);
+            int inc = (int) Math.round(overlapInc * 10000.0);
+
+            if (inc <= 0) {
+                IJ.error("IoU increment must be > 0.");
+                return new double[0];
+            }
+
+            for (int th = start; th <= end + 1; th += inc) {
+                double value = th / 10000.0;
+                thresholds.put(th, value);
+            }
+        }
+
+        double[] result = new double[thresholds.size()];
+
+        int i = 0;
+        for (Double value : thresholds.values()) {
+            result[i++] = value;
+        }
+
+        return result;
+    }
+
+    private IoUAnalysis computeIoUForVolumes(ImagePlus truthVolume, ImagePlus testVolume) {
+
+        int maxTruth = MicUtils.correctObjectNumbering(truthVolume);
+        int maxTest = MicUtils.correctObjectNumbering(testVolume);
+
+        ImageProcessor histo2D = MicUtils.histo2D(
+                truthVolume,
+                maxTruth,
+                testVolume,
+                maxTest
+        );
+
+        int[] histoTruth = MicUtils.histo1D(truthVolume, maxTruth);
+        int[] histoTest = MicUtils.histo1D(testVolume, maxTest);
+
+        ImageProcessor iou = MicUtils.computesIoUs(
+                histo2D,
+                histoTruth,
+                histoTest
+        );
+
+        checkPositionAndSize(
+                iou,
+                histoTruth,
+                histoTest,
+                minSize,
+                minDist, truthVolume, testVolume
+        );
+
+        return new IoUAnalysis(
+                truthVolume,
+                testVolume,
+                iou
+        );
+
+    }
+
+    private void buildAndShowCompositeHyperstacks(ImagePlus originalTruth, ImagePlus originalTest) {
+
+        double[] thresholds = getCompositeIoUThresholds();
+
+        if (thresholds.length == 0) {
+            IJ.log("No IoU threshold available for composite hyperstack.");
+            return;
+        }
+
+        int width = originalTruth.getWidth();
+        int height = originalTruth.getHeight();
+
+        int nOriginalChannels = originalTruth.getNChannels();
+        int nSlices = originalTruth.getNSlices();
+        int nFrames = originalTruth.getNFrames();
+
+        if (lutcomposite == null) {
+            lutcomposite = getMiCLUT();
+        }
+
+        for (int originalChannel = 1; originalChannel <= nOriginalChannels; originalChannel++) {
+
+            IJ.log("Building composite hyperstack for original channel " + originalChannel);
+
+            ImageStack resultStack = new ImageStack(width, height);
+
+            for (int t = 1; t <= nFrames; t++) {
+
+                ImagePlus truthVolume = extractCZVolume(originalTruth, originalChannel, t);
+                ImagePlus testVolume = extractCZVolume(originalTest, originalChannel, t);
+
+                //ImageProcessor iou = computeIoUForVolumes(truthVolume, testVolume);
+                IoUAnalysis analysis = computeIoUForVolumes(truthVolume, testVolume);
+                ImageProcessor[] colorcodes = new ImageProcessor[thresholds.length];
+
+                for (int thresholdIndex = 0; thresholdIndex < thresholds.length; thresholdIndex++) {
+                    colorcodes[thresholdIndex] = analysis.getColorCode(thresholds[thresholdIndex] );
+                }
+
+                ImageStack truthStack = truthVolume.getImageStack();
+                ImageStack testStack = testVolume.getImageStack();
+
+                for (int z = 1; z <= nSlices; z++) {
+
+                    ImageProcessor truthProcessor = truthStack.getProcessor(z);
+                    ImageProcessor testProcessor = testStack.getProcessor(z);
+
+                    for (int thresholdIndex = 0; thresholdIndex < thresholds.length; thresholdIndex++) {
+
+                        ImageProcessor compositePlane = IoUAnalysis.displayCombinationProcessor(
+                                truthProcessor,
+                                testProcessor,
+                                colorcodes[thresholdIndex]
+                        );
+
+                        String label =
+                                "IoU=" + IJ.d2s(thresholds[thresholdIndex], 4) +
+                                        " C=" + originalChannel +
+                                        " Z=" + z +
+                                        " T=" + t;
+
+                        resultStack.addSlice(label, compositePlane);
+                    }
+                }
+            }
+
+            String title =
+                    "c"+originalChannel+"_" +
+                            originalTruth.getShortTitle() +
+                            "_VS_" +
+                            originalTest.getShortTitle() +
+                            "_sourceC" +
+                            originalChannel;
+
+            ImagePlus composite = new ImagePlus(title, resultStack);
+
+            composite.setDimensions(
+                    thresholds.length,
+                    nSlices,
+                    nFrames
+            );
+
+            composite.setOpenAsHyperStack(true);
+
+            if (originalTruth.getCalibration() != null) {
+                composite.setCalibration(originalTruth.getCalibration().copy());
+            }
+
+            CompositeImage compositeImage = new CompositeImage(
+                    composite,
+                    CompositeImage.COLOR
+            );
+
+            for (int thresholdIndex = 0; thresholdIndex < thresholds.length; thresholdIndex++) {
+                compositeImage.setChannelLut(
+                        lutcomposite,
+                        thresholdIndex + 1
+                );
+            }
+
+            compositeImage.setTitle(title);
+            compositeImage.show();
+        }
     }
 
     /**
@@ -467,161 +772,156 @@ public class MaskInstantComparator3D implements PlugIn {
 
 
 
-    private void checkPositionAndSize(ImageProcessor iou, int[] histoTruth, int[] histoTest, double minSize, double minDist){
-        //check size
-        for(int y=0;y<iou.getHeight();y++){
-            for(int x=0;x<iou.getWidth();x++){
-                if(histoTruth[x]<minSize||histoTest[y]<minSize) iou.setf(x,y,-1);
-            }
-        }
+    private void checkPositionAndSize(
+            ImageProcessor iou,
+            int[] histoTruth,
+            int[] histoTest,
+            double minSize,
+            double minDist,
+            ImagePlus truth,
+            ImagePlus test
+    ) {
+        // Check object size
+        for (int y = 0; y < iou.getHeight(); y++) {
+            for (int x = 0; x < iou.getWidth(); x++) {
 
-        //check position
-        if(minDist<0) return;
+                boolean truthTooSmall =
+                        x >= 0 &&
+                                x < histoTruth.length &&
+                                histoTruth[x] < minSize;
 
-        ArrayList<Integer> borderTruth=new ArrayList<>();
-        if(truthMaskIP.getNSlices()==1) borderTruth.addAll(objectBorder(truthMaskIP.getProcessor(),minDist));
-        else{
-            ImageStack is=truthMaskIP.getImageStack();
-            for(int z=1;z<=is.getSize();z++){
-                borderTruth.addAll(objectBorder(is.getProcessor(z),minDist));
-            }
-        }
-        Set<Integer> set = new HashSet<Integer>(borderTruth);
-        borderTruth = new ArrayList<Integer>(set);
+                boolean testTooSmall =
+                        y >= 0 &&
+                                y < histoTest.length &&
+                                histoTest[y] < minSize;
 
-        ArrayList<Integer> borderTest=new ArrayList<>();
-        if(testMaskIP.getNSlices()==1) borderTest.addAll(objectBorder(testMaskIP.getProcessor(),minDist));
-        else{
-            ImageStack is=testMaskIP.getImageStack();
-            for(int z=1;z<=is.getSize();z++){
-                borderTest.addAll(objectBorder(is.getProcessor(z),minDist));
-            }
-        }
-        set = new HashSet<Integer>(borderTest);
-        borderTest = new ArrayList<Integer>(set);
-        removefromIoU(iou,borderTruth,borderTest);
-    }
-
-    private ArrayList<Integer> objectBorder(ImageProcessor ip, double minDist){
-        ArrayList<Integer> border=new ArrayList<>();
-        for(int x=0;x<ip.getWidth();x++){
-            for(int y=0;y<=minDist;y++) {
-                if (ip.getf(x, y) > 0) border.add(new Integer((int) ip.getf(x, y)));
-                if (ip.getf(x, ip.getHeight() - 1-y) > 0) border.add(new Integer((int) ip.getf(x, ip.getHeight() - 1 -y)));
-            }
-        }
-        for(int y=0;y<ip.getHeight();y++){
-            for(int x=0;x<=minDist;x++){
-                if(ip.getf(x,y)>0) border.add(new Integer((int)ip.getf(x,y)));
-                if(ip.getf(ip.getWidth()-1-x,y)>0) border.add(new Integer((int)ip.getf(ip.getWidth()-1-x,y)));
-            }
-        }
-        Set<Integer> set = new HashSet<Integer>(border);
-        return new ArrayList<Integer>(set);
-    }
-    private void removefromIoU(ImageProcessor iou, ArrayList<Integer> borderTruth,ArrayList<Integer> borderTest){
-        for(Integer bt:borderTruth){
-            for(int y=0;y<iou.getHeight();y++){
-                iou.setf(bt,y,-1);
-            }
-        }
-        for(Integer bt:borderTest){
-            for(int x=0;x<iou.getWidth();x++){
-                iou.setf(x,bt,-1);
-            }
-        }
-    }
-
-    private ImageProcessor convertIoU2ColorCode(ImageProcessor iou, double threshold){
-        ByteProcessor bp=new ByteProcessor(iou.getWidth(),iou.getHeight());
-        float[] row=new float[iou.getWidth()];
-        float[] col = new float[iou.getHeight()];
-        for(int y=1;y<iou.getHeight();y++){
-            for(int x=1;x<iou.getWidth();x++){
-                double val = iou.getf(x,y);
-                if(val==-1){
-                    bp.set(x,y,NOT_ANALYZED_COLOR_INDEX);
-                }else if(val>=threshold){
-                    bp.set(x,y,TP_COLOR_INDEX);
-                }else{
-                    Arrays.fill(row,0);
-                    iou.getRow(1,y,row,iou.getWidth()-1);
-                    Arrays.sort(row);
-                    Arrays.fill(col,0);
-                    iou.getColumn(x,1,col,iou.getHeight()-1);
-                    Arrays.sort(col);
-                    if(col[col.length-1]>threshold){
-                        bp.set(x,y,SPLIT_COLOR_INDEX);
-                    } else if(row[row.length-1]>threshold){
-                        bp.set(x,y,FUSED_COLOR_INDEX);
-                    } else bp.set(x,y,UNDER_IOU_COLOR_INDEX);
+                if (truthTooSmall || testTooSmall) {
+                    iou.setf(x, y, -1);
                 }
             }
         }
-        for(int y=1;y<iou.getHeight();y++){
-            if(iou.getf(0,y)<0) bp.set(0,y,NOT_ANALYZED_COLOR_INDEX);
-            else {
-                iou.getRow(0, y, row, iou.getWidth());
-                int foundTP = 0;
-                int foundIoU = 0;
-                for (int x = 1; x < iou.getWidth(); x++) {
-                    if (row[x] > threshold) foundTP++;
-                    else if (row[x] > 0 && row[x] < threshold) foundIoU++;
-                }
-                if (foundTP > 0) bp.set(0, y, TP_OVER_COLOR_INDEX);
-                else if (foundIoU > 0) bp.set(0, y, UNDER_IOU_EXT_COLOR_INDEX);
-                else bp.set(0, y, FP_COLOR_INDEX);
-            }
+
+        // Check object distance to border
+        if (minDist < 0) return;
+
+        ArrayList<Integer> borderTruth = new ArrayList<>();
+
+        ImageStack truthStack = truth.getImageStack();
+
+        for (int z = 1; z <= truthStack.getSize(); z++) {
+            borderTruth.addAll(
+                    objectBorder(
+                            truthStack.getProcessor(z),
+                            minDist
+                    )
+            );
         }
-        row=null;
-        for(int x=1;x<iou.getWidth();x++){
-            if(iou.getf(x,0)<0) bp.set(x,0,NOT_ANALYZED_COLOR_INDEX);
-            else {
-                iou.getColumn(x, 0, col, iou.getHeight());
-                int foundTP = 0;
-                int foundIoU = 0;
-                for (int y = 1; y < iou.getHeight(); y++) {
-                    if (col[y] > threshold) foundTP++;
-                    else if (col[y] > 0 && col[y] < threshold) foundIoU++;
-                }
-                if (foundTP > 0) bp.set(x, 0, TP_UNDER_COLOR_INDEX);
-                else if (foundIoU > 0) bp.set(x, 0, UNDER_IOU_EXT_COLOR_INDEX);
-                else bp.set(x, 0, FN_COLOR_INDEX);
+
+        Set<Integer> truthSet = new HashSet<>(borderTruth);
+        borderTruth = new ArrayList<>(truthSet);
+
+        ArrayList<Integer> borderTest = new ArrayList<>();
+
+        ImageStack testStack = test.getImageStack();
+
+        for (int z = 1; z <= testStack.getSize(); z++) {
+            borderTest.addAll(
+                    objectBorder(
+                            testStack.getProcessor(z),
+                            minDist
+                    )
+            );
+        }
+
+        Set<Integer> testSet = new HashSet<>(borderTest);
+        borderTest = new ArrayList<>(testSet);
+
+        removefromIoU(iou, borderTruth, borderTest);
+    }
+
+    private ArrayList<Integer> objectBorder(ImageProcessor ip, double minDist) {
+
+        ArrayList<Integer> border = new ArrayList<>();
+
+        int dist = (int) Math.round(minDist);
+
+        dist = Math.max(0, dist);
+        dist = Math.min(dist, Math.min(ip.getWidth(), ip.getHeight()) - 1);
+
+        for (int x = 0; x < ip.getWidth(); x++) {
+            for (int y = 0; y <= dist; y++) {
+
+                float v1 = ip.getf(x, y);
+                float v2 = ip.getf(x, ip.getHeight() - 1 - y);
+
+                if (v1 > 0) border.add((int) v1);
+                if (v2 > 0) border.add((int) v2);
             }
         }
 
-        return bp;
-    }
+        for (int y = 0; y < ip.getHeight(); y++) {
+            for (int x = 0; x <= dist; x++) {
 
-    protected ImagePlus displayCombination(ImagePlus truth, ImagePlus test, ImageProcessor colorcode){
-        if(truth.getNSlices()==1){
-            ImagePlus tmp = new ImagePlus("composite_"+truth.getTitle()+"_VS_"+test.getTitle(),
-                    displayCombinationProcessor(truth.getProcessor(),test.getProcessor(),colorcode));
-            if(lutcomposite!=null) tmp.setLut(lutcomposite);
-            return tmp;
-        }
-        ImageStack is1=truth.getImageStack();
-        ImageStack is2=test.getImageStack();
-        ImageStack result=new ImageStack(is1.getWidth(),is1.getHeight());
-        for(int z=0;z<truth.getNSlices();z++){
-            result.addSlice(displayCombinationProcessor(is1.getProcessor(z+1),
-                    is2.getProcessor(z+1),colorcode));
-        }
-        ImagePlus tmp = new ImagePlus("composite_"+truth.getTitle()+"_VS_"+test.getTitle(),result);
-        if(lutcomposite!=null) tmp.setLut(lutcomposite);
-        return tmp;
-    }
-    protected ImageProcessor displayCombinationProcessor(ImageProcessor truth, ImageProcessor test, ImageProcessor colorcode){
-        ByteProcessor result=new ByteProcessor(truth.getWidth(),truth.getHeight());
-        for(int y=0;y<truth.getHeight();y++){
-            for(int x=0;x<truth.getWidth();x++){
-                int valx = (int)truth.getf(x,y);
-                int valy = (int)test.getf(x,y);
-                result.set(x,y,colorcode.get(valx,valy));
+                float v1 = ip.getf(x, y);
+                float v2 = ip.getf(ip.getWidth() - 1 - x, y);
+
+                if (v1 > 0) border.add((int) v1);
+                if (v2 > 0) border.add((int) v2);
             }
         }
-        return result;
+
+        Set<Integer> set = new HashSet<>(border);
+        return new ArrayList<>(set);
     }
+
+    private void removefromIoU(
+            ImageProcessor iou,
+            ArrayList<Integer> borderTruth,
+            ArrayList<Integer> borderTest
+    ) {
+        for (Integer bt : borderTruth) {
+
+            if (bt == null) continue;
+
+            int truthLabel = bt;
+
+            if (truthLabel <= 0 || truthLabel >= iou.getWidth()) {
+                IJ.log(
+                        "Warning: truth border label " +
+                                truthLabel +
+                                " ignored because IoU width is " +
+                                iou.getWidth()
+                );
+                continue;
+            }
+
+            for (int y = 0; y < iou.getHeight(); y++) {
+                iou.setf(truthLabel, y, -1);
+            }
+        }
+
+        for (Integer bt : borderTest) {
+
+            if (bt == null) continue;
+
+            int testLabel = bt;
+
+            if (testLabel <= 0 || testLabel >= iou.getHeight()) {
+                IJ.log(
+                        "Warning: test border label " +
+                                testLabel +
+                                " ignored because IoU height is " +
+                                iou.getHeight()
+                );
+                continue;
+            }
+
+            for (int x = 0; x < iou.getWidth(); x++) {
+                iou.setf(x, testLabel, -1);
+            }
+        }
+    }
+
 
 
     private void createGraphs(String title,double[] thresholds, double[] precision, double[] sensitivity, double[] jaccardIndex, double[] fmeasure){
@@ -650,72 +950,9 @@ public class MaskInstantComparator3D implements PlugIn {
 
     }
 
-    protected void pixelAnalysis(ImageProcessor histo2D){
-        int tp=0;
-        int fp=0;
-        int fn=0;
-        int tn=histo2D.get(0,0);
-        int total=0;
-        for(int y=0;y<histo2D.getHeight();y++){
-            for(int x=0;x<histo2D.getWidth();x++){
-                double val = histo2D.get(x,y);
-                total+=val;
-                if(x>0&&y>0) tp+=val;
-                if(x==0&&y>0) fp+=val;
-                if(y==0&&x>0) fn+=val;
-            }
-        }
 
-        double precision = ((double)tp) / (double)(tp+fp);
-        double sensitivity = ((double)tp) / (double)(tp+fn);
-        double jaccard = ((double)tp) / (double)(tp+fp+fn);
-        double dsc = ((double)2*precision*sensitivity) / (double)(precision+sensitivity);
-        addToResultTable(resultsTable, "Pixel",tp,fp,fn,precision,sensitivity,jaccard,dsc,-1);
-        //IJ.log("Pixel analysis");
-        //IJ.log("total voxels="+total+" ("+(tp+tn+fp+fn)+")");
 
-    }
 
-    /**
-     * computes the metrics with corresponding threshold
-     * @param iou
-     * @param threshold
-     * @return array with {tp,fp,fn, precision,sensitivity,jaccard,dsc}
-     */
-    protected double[] objectAnalysis(ImageProcessor iou, double threshold){
-        int tp=0;
-        int fp=0;
-        int fn=0;
-        float[] row=new float[iou.getWidth()+1];
-        float[] col = new float[iou.getHeight()+1];
-        for(int y=1;y<iou.getHeight();y++){
-            iou.getRow(0,y,row,iou.getWidth());
-            int found=0;
-            for(int x=1;x<iou.getWidth();x++){
-                if(row[x]>=threshold) found++;
-            }
-            switch (found){
-                case 0: if(row[0]>0)fp++; break;
-                case 1: tp++; break;
-                default: tp++;
-                IJ.log("object "+y + "in test as "+ found +" correspondances");
-            }
-        }
-        row=null;
-        for(int x=1;x<iou.getWidth();x++){
-            iou.getColumn(x,0,col,iou.getHeight());
-            int found=0;
-            for(int y=1;y<iou.getHeight();y++){
-                if(col[y]>threshold) found++;
-            }
-            if(found==0 && col[0]>0) fn++;
-        }
-        double precision = ((double)tp) / (double)(tp+fp);
-        double sensitivity = ((double)tp) / (double)(tp+fn);
-        double jaccard = ((double)tp) / (double)(tp+fp+fn);
-        double dsc = (2*precision*sensitivity) / (precision+sensitivity);
-        return new double[] {tp,fp,fn, precision,sensitivity,jaccard,dsc};
-    }
 
 
 }
