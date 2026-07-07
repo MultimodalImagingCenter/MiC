@@ -39,57 +39,17 @@ public class IoUAnalysis {
         this.maxTest = maxTest;
     }
 
-    public static IoUAnalysis create(
-            ImagePlus truth,
-            ImagePlus test,
-            double minSize,
-            double minDist
-    ) {
+    public static IoUAnalysis create(ImagePlus truth, ImagePlus test, double minSize, double minDist) {
+        int maxTruth = MicUtils.correctObjectNumbering(truth);
+        int maxTest = MicUtils.correctObjectNumbering(test);
 
-        int maxTruth =
-                MicUtils.correctObjectNumbering(truth);
+        ImageProcessor histo2D =MicUtils.histo2D(truth, maxTruth, test, maxTest);
+        int[] histoTruth = MicUtils.histo1D(truth, maxTruth);
+        int[] histoTest = MicUtils.histo1D(test, maxTest);
 
-        int maxTest =
-                MicUtils.correctObjectNumbering(test);
-
-        ImageProcessor histo2D =
-                MicUtils.histo2D(
-                        truth,
-                        maxTruth,
-                        test,
-                        maxTest
-                );
-
-        int[] histoTruth =
-                MicUtils.histo1D(
-                        truth,
-                        maxTruth
-                );
-
-        int[] histoTest =
-                MicUtils.histo1D(
-                        test,
-                        maxTest
-                );
-
-        ImageProcessor iou =
-                MicUtils.computesIoUs(
-                        histo2D,
-                        histoTruth,
-                        histoTest
-                );
-
+        ImageProcessor iou = MicUtils.computesIoUs(histo2D, histoTruth, histoTest);
         IoUAnalysis result = new IoUAnalysis(truth, test, histo2D, iou, maxTruth, maxTest);
-
-        result.checkPositionAndSize(
-                iou,
-                histoTruth,
-                histoTest,
-                minSize,
-                minDist,
-                truth,
-                test
-        );
+        result.checkPositionAndSize(iou, histoTruth, histoTest, minSize, minDist, truth, test);
 
         return result;
     }
@@ -109,19 +69,10 @@ public class IoUAnalysis {
                 int truthLabel = (int) truth.getf(x, y);
                 int testLabel = (int) test.getf(x, y);
 
-                if (
-                        truthLabel < 0 ||
-                                testLabel < 0 ||
-                                truthLabel > maxTruthLabel ||
-                                testLabel > maxTestLabel
-                ) {
+                if (truthLabel < 0 || testLabel < 0 || truthLabel > maxTruthLabel || testLabel  > maxTestLabel) {
                     result.set(x, y, 0);
                 } else {
-                    result.set(
-                            x,
-                            y,
-                            colorcode.get(truthLabel, testLabel)
-                    );
+                    result.set(x, y, colorcode.get(truthLabel, testLabel));
                 }
             }
         }
@@ -286,19 +237,10 @@ public class IoUAnalysis {
         return bp;
     }
 
-    public ImageProcessor createCompositePlane(
-            ImageProcessor truthPlane,
-            ImageProcessor testPlane,
-            double threshold
-    ) {
-        ImageProcessor colorcode =
-                getColorCode(threshold);
+    public ImageProcessor createCompositePlane(ImageProcessor truthPlane, ImageProcessor testPlane, double threshold) {
+        ImageProcessor colorcode = getColorCode(threshold);
 
-        return displayCombinationProcessor(
-                truthPlane,
-                testPlane,
-                colorcode
-        );
+        return displayCombinationProcessor(truthPlane, testPlane, colorcode);
     }
 
     private void checkPositionAndSize(
@@ -313,16 +255,8 @@ public class IoUAnalysis {
         // Check object size
         for (int y = 0; y < iou.getHeight(); y++) {
             for (int x = 0; x < iou.getWidth(); x++) {
-
-                boolean truthTooSmall =
-                        x >= 0 &&
-                                x < histoTruth.length &&
-                                histoTruth[x] < minSize;
-
-                boolean testTooSmall =
-                        y >= 0 &&
-                                y < histoTest.length &&
-                                histoTest[y] < minSize;
+                boolean truthTooSmall = x >= 0 && x < histoTruth.length && histoTruth[x] < minSize;
+                boolean testTooSmall = y >= 0 && y < histoTest.length && histoTest[y] < minSize;
 
                 if (truthTooSmall || testTooSmall) {
                     iou.setf(x, y, -1);
@@ -334,32 +268,19 @@ public class IoUAnalysis {
         if (minDist < 0) return;
 
         ArrayList<Integer> borderTruth = new ArrayList<>();
-
         ImageStack truthStack = truth.getImageStack();
 
         for (int z = 1; z <= truthStack.getSize(); z++) {
-            borderTruth.addAll(
-                    objectBorder(
-                            truthStack.getProcessor(z),
-                            minDist
-                    )
-            );
+            borderTruth.addAll( objectBorder(truthStack.getProcessor(z), minDist)   );
         }
 
         Set<Integer> truthSet = new HashSet<>(borderTruth);
         borderTruth = new ArrayList<>(truthSet);
-
         ArrayList<Integer> borderTest = new ArrayList<>();
-
         ImageStack testStack = test.getImageStack();
 
         for (int z = 1; z <= testStack.getSize(); z++) {
-            borderTest.addAll(
-                    objectBorder(
-                            testStack.getProcessor(z),
-                            minDist
-                    )
-            );
+            borderTest.addAll(objectBorder( testStack.getProcessor(z), minDist)  );
         }
 
         Set<Integer> testSet = new HashSet<>(borderTest);
@@ -403,11 +324,7 @@ public class IoUAnalysis {
         return new ArrayList<>(set);
     }
 
-    private void removefromIoU(
-            ImageProcessor iou,
-            ArrayList<Integer> borderTruth,
-            ArrayList<Integer> borderTest
-    ) {
+    private void removefromIoU(ImageProcessor iou, ArrayList<Integer> borderTruth, ArrayList<Integer> borderTest) {
         for (Integer bt : borderTruth) {
 
             if (bt == null) continue;
