@@ -380,4 +380,29 @@ public class IoUAnalysis {
         }
     }
 
+    public AnalysisResult computeAnalysisResult(double overlapMin, double overlapMax, double overlapInc){
+        AnalysisResult result = new AnalysisResult();
+
+        result.setPixelMetrics(getPixelMetrics());
+        result.setObjectMetrics(getMetrics(0.5));
+
+        int nbIndexes = (int)Math.round((overlapMax - overlapMin) / overlapInc + 1);
+
+        Metrics[] curveMetrics = new Metrics[nbIndexes];
+        double[] thresholds = new double[nbIndexes];
+
+        int index = 0;
+
+        for(double threshold = overlapMin; threshold <= overlapMax + 1e-6; threshold += overlapInc){
+            thresholds[index] = Math.round(threshold * 10000.0) / 10000.0;
+            curveMetrics[index] = getMetrics(thresholds[index]);
+            index++;
+        }
+
+        result.setThresholds(thresholds);
+        result.setCurveMetrics(curveMetrics);
+
+        return result;
+    }
+
 }

@@ -100,6 +100,12 @@ public class Metrics {
         ap /= precisionRecallCurve.size();
         return ap;
     }
+    public double getAP(){
+        return getPrecision() * getSensitivity();
+    }
+    public double getRecall(){
+        return getSensitivity();
+    }
 
 
     public List<Map<String, Double>> calculatePrecisionRecallCurve() {
