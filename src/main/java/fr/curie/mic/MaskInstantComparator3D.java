@@ -45,7 +45,8 @@ public class MaskInstantComparator3D implements PlugIn {
     //    Binary images to compare
     private ImagePlus truthMaskIP;
     private ImagePlus testMaskIP;
-
+    private int nChannels;
+    private int nFrames;
 
 
     //composite image created in results
@@ -75,7 +76,10 @@ public class MaskInstantComparator3D implements PlugIn {
 
     private boolean showComposite;
     private boolean showCorrespondances;
-    private PlotVirtualStack plotStack;
+    private ImagePlus graphHyperStack;
+    private ArrayList<ImageProcessor> correspondanceImages;
+    private ImagePlus correspondanceHyperStack;
+
 
     private LUT lutcomposite;
     private double EPSILON = 1E-7;
@@ -109,16 +113,20 @@ public class MaskInstantComparator3D implements PlugIn {
 
         resultsTable.show("Mask comparison results");
         if(pixelObjectMethod)pixelObjectResultsTable.show("Mask comparison Object with IoU thresholds");
-
+        if(correspondanceHyperStack != null){
+            correspondanceHyperStack.show();
+        }
+        if(graphHyperStack != null){
+            graphHyperStack.setOpenAsHyperStack(true);
+            graphHyperStack.show();
+        }
 
     }
     public boolean analysis() {
-
         if (truthMaskIP == null || testMaskIP == null) {
             IJ.error("Truth or test image is null.");
             return false;
         }
-
         if (!checkHyperstackCompatibility(truthMaskIP, testMaskIP)) {
             return false;
         }
@@ -129,44 +137,37 @@ public class MaskInstantComparator3D implements PlugIn {
         int nChannels = originalTruth.getNChannels();
         int nFrames = originalTruth.getNFrames();
 
+        if(showCorrespondances){
+            correspondanceImages = new ArrayList<>();
+        }
+
         boolean ok = true;
 
         for (int t = 1; t <= nFrames; t++) {
             for (int c = 1; c <= nChannels; c++) {
-
                 IJ.log("Analyzing channel " + c + ", frame " + t);
-
                 ImagePlus truthSubVolume = extractCZVolume(originalTruth, c, t);
                 ImagePlus testSubVolume = extractCZVolume(originalTest, c, t);
-
                 truthMaskIP = truthSubVolume;
                 testMaskIP = testSubVolume;
-
                 resultsTable.incrementCounter();
-
                 boolean currentOk = analysis3D(c, t);
                 ok = ok && currentOk;
             }
         }
-
         truthMaskIP = originalTruth;
         testMaskIP = originalTest;
-
+        if(showCorrespondances){
+            buildCorrespondanceHyperStack(nChannels, nFrames);
+        }
         if (showComposite && (objectMethod || pixelObjectMethod)) {
             buildAndShowCompositeHyperstacks(originalTruth, originalTest);
         }
-
         return ok;
     }
 
     public boolean analysis3D(int channel, int frame){
-        IoUAnalysis analysis =
-                IoUAnalysis.create(
-                        truthMaskIP,
-                        testMaskIP,
-                        minSize,
-                        minDist
-                );
+        IoUAnalysis analysis = IoUAnalysis.create(truthMaskIP, testMaskIP,minSize, minDist);
         int maxTruth = analysis.getMaxTruth();
         int maxTest = analysis.getMaxTest();
 
@@ -197,16 +198,16 @@ public class MaskInstantComparator3D implements PlugIn {
         if(objectMethod || pixelObjectMethod) {
             //compute histograms 1D for each images
             //IJ.log("truth histo");
-            int[] histoTruth=MicUtils.histo1D(truthMaskIP,maxTruth);
+            //int[] histoTruth=MicUtils.histo1D(truthMaskIP,maxTruth);
             //IJ.log("test histo");
-            int[] histoTest=MicUtils.histo1D(testMaskIP,maxTest);
+            //int[] histoTest=MicUtils.histo1D(testMaskIP,maxTest);
             //compute IoUs for each objects
             //IJ.log("compute ious");
             //ImageProcessor iou = MicUtils.computesIoUs(histo2D, histoTruth, histoTest);
             //IoUAnalysis analysis = computeIoUForVolumes(truthMaskIP, testMaskIP);
             //IoUAnalysis analysis = IoUAnalysis.create(truthMaskIP,testMaskIP,minSize,minDist);
             //checkPositionAndSize(iou,histoTruth,histoTest,minSize,minDist,truthMaskIP,testMaskIP);
-            if(showCorrespondances) new ImagePlus("objects_correspondance_X_Truth_Y_Test",analysis.getIoU()).show();
+            if(showCorrespondances) correspondanceImages.add(analysis.getIoU().duplicate());
             if(objectMethod) {
                 //double[] metrics = objectAnalysis(iou, 0.5);
                 Metrics metrics = analysis.getMetrics(0.5);
@@ -242,7 +243,7 @@ public class MaskInstantComparator3D implements PlugIn {
                     addToResultTable(pixelObjectResultsTable, "Object",metrics.getTP(),metrics.getFP(),metrics.getFN(),
                             metrics.getPrecision(),metrics.getSensitivity(),metrics.getJaccardIndex(),metrics.getF1measure(),qth);
                 }
-                if(showGraphs) createGraphs(truthMaskIP.getShortTitle()+"_VS_"+testMaskIP.getShortTitle()+"_IoU_graph",ious,precisions,sensitivities,jaccards,dscs);
+                if(showGraphs) createGraphs(channel, frame, truthMaskIP.getShortTitle()+"_VS_"+testMaskIP.getShortTitle()+"_IoU_graph",ious,precisions,sensitivities,jaccards,dscs);
 
             }
         }
@@ -301,24 +302,15 @@ public class MaskInstantComparator3D implements PlugIn {
         ImageStack subStack = new ImageStack(width, height);
 
         for (int z = 1; z <= nSlices; z++) {
-
             int stackIndex = source.getStackIndex(channel, z, frame);
+            ImageProcessor ip = (sourceStack!=null && sourceStack.size()>0) ? sourceStack.getProcessor(stackIndex).duplicate() : source.getProcessor().duplicate();
 
-            ImageProcessor ip = sourceStack
-                    .getProcessor(stackIndex)
-                    .duplicate();
-
-            String label = sourceStack.getSliceLabel(stackIndex);
+            String label = (sourceStack!=null && sourceStack.size()>0) ? sourceStack.getSliceLabel(stackIndex) : source.getShortTitle();
             subStack.addSlice(label, ip);
         }
 
-        String title =
-                source.getShortTitle() +
-                        "_C" + channel +
-                        "_T" + frame;
-
+        String title = source.getShortTitle() + "_C" + channel + "_T" + frame;
         ImagePlus result = new ImagePlus(title, subStack);
-
         result.setDimensions(1, nSlices, 1);
 
         if (source.getCalibration() != null) {
@@ -366,9 +358,7 @@ public class MaskInstantComparator3D implements PlugIn {
 
 
     private void buildAndShowCompositeHyperstacks(ImagePlus originalTruth, ImagePlus originalTest) {
-
         double[] thresholds = getCompositeIoUThresholds();
-
         if (thresholds.length == 0) {
             IJ.log("No IoU threshold available for composite hyperstack.");
             return;
@@ -386,20 +376,16 @@ public class MaskInstantComparator3D implements PlugIn {
         }
 
         for (int originalChannel = 1; originalChannel <= nOriginalChannels; originalChannel++) {
-
             IJ.log("Building composite hyperstack for original channel " + originalChannel);
-
+            //long timestart= System.currentTimeMillis();
             ImageStack resultStack = new ImageStack(width, height);
-
             for (int t = 1; t <= nFrames; t++) {
-
                 ImagePlus truthVolume = extractCZVolume(originalTruth, originalChannel, t);
                 ImagePlus testVolume = extractCZVolume(originalTest, originalChannel, t);
 
                 //ImageProcessor iou = computeIoUForVolumes(truthVolume, testVolume);
                 //IoUAnalysis analysis = computeIoUForVolumes(truthVolume, testVolume);
                 IoUAnalysis analysis = IoUAnalysis.create(truthVolume,testVolume,minSize,minDist);
-
 
                 ImageStack truthStack = truthVolume.getImageStack();
                 ImageStack testStack = testVolume.getImageStack();
@@ -410,58 +396,36 @@ public class MaskInstantComparator3D implements PlugIn {
                     ImageProcessor testProcessor = testStack.getProcessor(z);
 
                     for (int thresholdIndex = 0; thresholdIndex < thresholds.length; thresholdIndex++) {
-
+                        //long start = System.currentTimeMillis();
                         ImageProcessor compositePlane = analysis.createCompositePlane(truthProcessor,testProcessor,
                                 thresholds[thresholdIndex]
                         );
-
-                        String label =
-                                "IoU=" + IJ.d2s(thresholds[thresholdIndex], 4) +
-                                        " C=" + originalChannel +
-                                        " Z=" + z +
-                                        " T=" + t;
-
+                        //IJ.log(" : createCompositePlane : "+(System.currentTimeMillis()-start)+" ms");
+                        String label ="IoU=" + IJ.d2s(thresholds[thresholdIndex], 4) +
+                                " C=" + originalChannel + " Z=" + z + " T=" + t;
                         resultStack.addSlice(label, compositePlane);
                     }
                 }
             }
 
-            String title =
-                    "c"+originalChannel+"_" +
-                            originalTruth.getShortTitle() +
-                            "_VS_" +
-                            originalTest.getShortTitle() +
-                            "_sourceC" +
-                            originalChannel;
+            String title ="c"+originalChannel+"_" + originalTruth.getShortTitle() +
+                            "_VS_" + originalTest.getShortTitle() + "_sourceC" + originalChannel;
 
             ImagePlus composite = new ImagePlus(title, resultStack);
-
-            composite.setDimensions(
-                    thresholds.length,
-                    nSlices,
-                    nFrames
-            );
-
+            composite.setDimensions(thresholds.length,nSlices,nFrames);
             composite.setOpenAsHyperStack(true);
-
             if (originalTruth.getCalibration() != null) {
                 composite.setCalibration(originalTruth.getCalibration().copy());
             }
 
-            CompositeImage compositeImage = new CompositeImage(
-                    composite,
-                    CompositeImage.COLOR
-            );
-
+            CompositeImage compositeImage = new CompositeImage(composite,CompositeImage.COLOR);
             for (int thresholdIndex = 0; thresholdIndex < thresholds.length; thresholdIndex++) {
-                compositeImage.setChannelLut(
-                        lutcomposite,
-                        thresholdIndex + 1
-                );
+                compositeImage.setChannelLut(lutcomposite, thresholdIndex + 1);
             }
-
             compositeImage.setTitle(title);
             compositeImage.show();
+            //long timestop= System.currentTimeMillis();
+            //IJ.log("Composite hyperstack built in "+(timestop-timestart)+" ms");
         }
     }
 
@@ -651,6 +615,8 @@ public class MaskInstantComparator3D implements PlugIn {
 
         MicUtils.checkImagePlus(truthMaskIP);
         MicUtils.checkImagePlus(testMaskIP);
+        nChannels=truthMaskIP.getNChannels();
+        nFrames=truthMaskIP.getNFrames();
 
         minSize = gd.getNextNumber();
         maxSize = Double.POSITIVE_INFINITY;
@@ -691,7 +657,7 @@ public class MaskInstantComparator3D implements PlugIn {
         }
     }
 
-    private void createGraphs(String title,double[] thresholds, double[] precision, double[] sensitivity, double[] jaccardIndex, double[] fmeasure){
+    private void createGraphs(int channel,int frame, String title,double[] thresholds, double[] precision, double[] sensitivity, double[] jaccardIndex, double[] fmeasure){
         IJ.log("add graphs");
         Plot plot=new Plot(title,"overlap threshold","score");
         //add precision
@@ -712,14 +678,39 @@ public class MaskInstantComparator3D implements PlugIn {
         labels+="\tfmeasure ((2*precision*sensitivity)/(precision+sensitivity))";
         //add legend
         plot.addLegend(labels);
+        //plot.setSize(graphHyperStack.getWidth(),graphHyperStack.getHeight());
+        //plot.setFrameSize(graphHyperStack.getWidth(),graphHyperStack.getHeight());
         plot.setLimits(thresholds[0], thresholds[thresholds.length-1],0, 1.1);
-        PlotWindow pw = plot.show();
 
+        ImageProcessor plotProcessor = plot.getImagePlus().getProcessor();
+        if(graphHyperStack==null){
+            graphHyperStack = IJ.createHyperStack("IoU Graphs",plotProcessor.getWidth(), plotProcessor.getHeight(),nChannels,1,nFrames,24);
+        }
+        IJ.log("plotprocessor size = "+plotProcessor.getWidth()+" x "+plotProcessor.getHeight());
+        IJ.log("plot size = "+plot.getSize().getWidth()+" x "+plot.getSize().getHeight());
+        int stackIndex = graphHyperStack.getStackIndex(channel, 1, frame);
+        graphHyperStack.getStack().getProcessor(stackIndex).copyBits(plotProcessor, 0, 0, Blitter.COPY);
+        graphHyperStack.getStack().setSliceLabel("C"+channel+"_T"+frame, stackIndex);
     }
 
+    private void buildCorrespondanceHyperStack(int nChannels, int nFrames){
+        int maxWidth = 1;
+        int maxHeight = 1;
+        for(ImageProcessor ip : correspondanceImages){
+            maxWidth = Math.max(maxWidth, ip.getWidth());
+            maxHeight = Math.max(maxHeight, ip.getHeight());
+        }
+        ImageStack stack = new ImageStack(maxWidth, maxHeight);
 
+        for(ImageProcessor ip : correspondanceImages){
+            FloatProcessor fp = new FloatProcessor(maxWidth, maxHeight);
+            fp.copyBits(ip,0,0, Blitter.COPY);
+            stack.addSlice(fp);
+        }
 
-
-
+        correspondanceHyperStack =new ImagePlus("IoU Correspondances", stack);
+        correspondanceHyperStack.setDimensions(nChannels, 1, nFrames);
+        correspondanceHyperStack.setOpenAsHyperStack(true);
+    }
 
 }

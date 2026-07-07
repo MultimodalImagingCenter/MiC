@@ -40,6 +40,7 @@ public class IoUAnalysis {
     }
 
     public static IoUAnalysis create(ImagePlus truth, ImagePlus test, double minSize, double minDist) {
+        //long start = System.currentTimeMillis();
         int maxTruth = MicUtils.correctObjectNumbering(truth);
         int maxTest = MicUtils.correctObjectNumbering(test);
 
@@ -50,7 +51,7 @@ public class IoUAnalysis {
         ImageProcessor iou = MicUtils.computesIoUs(histo2D, histoTruth, histoTest);
         IoUAnalysis result = new IoUAnalysis(truth, test, histo2D, iou, maxTruth, maxTest);
         result.checkPositionAndSize(iou, histoTruth, histoTest, minSize, minDist, truth, test);
-
+        //IJ.log("IoUAnalysis.create : "+(System.currentTimeMillis()-start)+" ms");
         return result;
     }
 
@@ -178,6 +179,23 @@ public class IoUAnalysis {
 
     public ImageProcessor computeColorCode(double threshold) {
         ByteProcessor bp = new ByteProcessor(this.iou.getWidth(), this.iou.getHeight());
+        float[] rowMax = new float[this.iou.getHeight()];
+        float[] colMax = new float[this.iou.getWidth()];
+        for(int y=1;y<this.iou.getHeight();y++){
+            float max = Float.NEGATIVE_INFINITY;
+            for(int x=1;x<this.iou.getWidth();x++){
+                max = Math.max(max,this.iou.getf(x,y));
+            }
+            rowMax[y] = max;
+        }
+        for(int x=1;x<this.iou.getWidth();x++){
+            float max = Float.NEGATIVE_INFINITY;
+            for(int y=1;y<this.iou.getHeight();y++){
+                max = Math.max(max,this.iou.getf(x,y));
+            }
+            colMax[x] = max;
+        }
+
         float[] row = new float[this.iou.getWidth()];
         float[] col = new float[this.iou.getHeight()];
         for (int y = 1; y < this.iou.getHeight(); y++) {
@@ -188,15 +206,9 @@ public class IoUAnalysis {
                 } else if (val >= threshold) {
                     bp.set(x, y, TP_COLOR_INDEX);
                 } else {
-                    Arrays.fill(row, 0);
-                    this.iou.getRow(1, y, row, this.iou.getWidth() - 1);
-                    Arrays.sort(row);
-                    Arrays.fill(col, 0);
-                    this.iou.getColumn(x, 1, col, this.iou.getHeight() - 1);
-                    Arrays.sort(col);
-                    if (col[col.length - 1] > threshold) {
+                    if (colMax[x] > threshold) {
                         bp.set(x, y, SPLIT_COLOR_INDEX);
-                    } else if (row[row.length - 1] > threshold) {
+                    } else if (rowMax[y] > threshold) {
                         bp.set(x, y, FUSED_COLOR_INDEX);
                     } else bp.set(x, y, UNDER_IOU_COLOR_INDEX);
                 }
