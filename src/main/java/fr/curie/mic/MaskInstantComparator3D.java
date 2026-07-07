@@ -363,6 +363,7 @@ public class MaskInstantComparator3D implements PlugIn {
             IJ.log("No IoU threshold available for composite hyperstack.");
             return;
         }
+        int channelOffset = 0;
 
         int width = originalTruth.getWidth();
         int height = originalTruth.getHeight();
@@ -394,6 +395,12 @@ public class MaskInstantComparator3D implements PlugIn {
 
                     ImageProcessor truthProcessor = truthStack.getProcessor(z);
                     ImageProcessor testProcessor = testStack.getProcessor(z);
+                    if(pixelMethod) {
+                        ImageProcessor pixelOverlay = createPixelOverlayPlane(truthProcessor, testProcessor);
+                        resultStack.addSlice("Pixel superposition C=" + originalChannel
+                                + " Z=" + z + " T=" + t, pixelOverlay);
+                        channelOffset=1;
+                    }
 
                     for (int thresholdIndex = 0; thresholdIndex < thresholds.length; thresholdIndex++) {
                         //long start = System.currentTimeMillis();
@@ -412,15 +419,16 @@ public class MaskInstantComparator3D implements PlugIn {
                             "_VS_" + originalTest.getShortTitle() + "_sourceC" + originalChannel;
 
             ImagePlus composite = new ImagePlus(title, resultStack);
-            composite.setDimensions(thresholds.length,nSlices,nFrames);
+            composite.setDimensions(thresholds.length + channelOffset,nSlices,nFrames);
             composite.setOpenAsHyperStack(true);
             if (originalTruth.getCalibration() != null) {
                 composite.setCalibration(originalTruth.getCalibration().copy());
             }
 
             CompositeImage compositeImage = new CompositeImage(composite,CompositeImage.COLOR);
+            if(pixelMethod) compositeImage.setChannelLut(lutcomposite, 0 +channelOffset);
             for (int thresholdIndex = 0; thresholdIndex < thresholds.length; thresholdIndex++) {
-                compositeImage.setChannelLut(lutcomposite, thresholdIndex + 1);
+                compositeImage.setChannelLut(lutcomposite, thresholdIndex + 1 +channelOffset);
             }
             compositeImage.setTitle(title);
             compositeImage.show();
@@ -529,7 +537,7 @@ public class MaskInstantComparator3D implements PlugIn {
 
                 ((Checkbox)chV.get(4+offset)).setEnabled(varChecked);
                 ((Checkbox)chV.get(5+offset)).setEnabled(varChecked);
-                ((Checkbox)chV.get(6+offset)).setEnabled(varChecked||objChecked);
+                //((Checkbox)chV.get(6+offset)).setEnabled(varChecked||objChecked);
 
                 ((TextField)numV.get(3)).setEnabled(varChecked||objChecked);
                 ((TextField)numV.get(4)).setEnabled(varChecked||objChecked);
@@ -711,6 +719,27 @@ public class MaskInstantComparator3D implements PlugIn {
         correspondanceHyperStack =new ImagePlus("IoU Correspondances", stack);
         correspondanceHyperStack.setDimensions(nChannels, 1, nFrames);
         correspondanceHyperStack.setOpenAsHyperStack(true);
+    }
+
+    private ImageProcessor createPixelOverlayPlane(ImageProcessor truth, ImageProcessor test){
+        ByteProcessor bp = new ByteProcessor(truth.getWidth(), truth.getHeight());
+
+        for(int y=0;y<truth.getHeight();y++){
+            for(int x=0;x<truth.getWidth();x++){
+                boolean truthPixel = truth.getf(x,y) > 0;
+                boolean testPixel = test.getf(x,y) > 0;
+                if(truthPixel && testPixel){
+                    bp.set(x,y,1);   // jaune
+                }
+                else if(testPixel){
+                    bp.set(x,y,2);   // rouge
+                }
+                else if(truthPixel){
+                    bp.set(x,y,3);   // vert
+                }
+            }
+        }
+        return bp;
     }
 
 }
