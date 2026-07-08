@@ -13,8 +13,6 @@ public class AnalysisResult {
     private int channel;
     private int frame;
     private int slice;
-    private String truthImageName;
-    private String testImageName;
 //computes mAP folowing definitions in Hirling et al, Nature methods 2022
     //AP1 cannot be measured without confidence fixed IoU
     //mAP1 cannot be computed without confidence average of AP1 for all classes (fixed IoU)
@@ -180,5 +178,15 @@ public class AnalysisResult {
     }
     public String getPlotTitle(String baseTitle){
         return baseTitle + " [C" + channel + "-T" + frame + "-Z" + slice + "]";
+    }
+
+    public static AnalysisResult fromCurveMetrics(Metrics[] curveMetrics, double[] thresholds, int channel, int frame, int slice){
+        AnalysisResult result = new AnalysisResult();
+        result.setCurveMetrics(curveMetrics);
+        result.setThresholds(thresholds);
+        result.setChannel(channel);
+        result.setFrame(frame);
+        result.setSlice(slice);
+        return result;
     }
 }

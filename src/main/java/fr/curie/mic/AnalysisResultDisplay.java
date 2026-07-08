@@ -8,6 +8,8 @@ import ij.measure.ResultsTable;
 import ij.process.Blitter;
 
 import java.awt.*;
+import ij.gui.Roi;
+import java.awt.Rectangle;
 
 public class AnalysisResultDisplay {
     private final ImagePlus truthMaskIP;
@@ -306,5 +308,41 @@ public class AnalysisResultDisplay {
         if(pixelObjectMethod) thresholdResultsTable.show("Mask comparison Object with IoU thresholds");
         if((pixelObjectMethod || objectMethod) && showCorrespondances) correspondenceTable.show("Objects correspondences");
     }
+
+    public void addCorrespondence(String name, int channel, int time, int slice, Roi[] rois, int[] correspondance, double[] overlapPercent, boolean[] valid, int imageWidth, int imageHeight){
+        for(int i = 0; i < correspondance.length; i++){
+            if(i != 0) correspondenceTable.incrementCounter();
+
+            correspondenceTable.addValue("image", name);
+            correspondenceTable.addValue("channel", channel);
+            correspondenceTable.addValue("frame", time);
+            correspondenceTable.addValue("slice", slice);
+            correspondenceTable.addValue("roi truth", i);
+            correspondenceTable.addValue("centerX", rois[i].getBounds().getCenterX());
+            correspondenceTable.addValue("centerY", rois[i].getBounds().getCenterY());
+
+            Rectangle roi = rois[i].getBounds();
+
+            double dist = Math.min(
+                    roi.getCenterX(),
+                    imageWidth - roi.getCenterX()
+            );
+
+            dist = Math.min(
+                    dist,
+                    Math.min(
+                            roi.getCenterY(),
+                            imageHeight - roi.getCenterY()
+                    )
+            );
+
+            correspondenceTable.addValue("center distance to border", dist);
+            correspondenceTable.addValue("distance validated (1 for true)", valid[i] ? 1 : 0);
+            correspondenceTable.addValue("corresponding roi test", correspondance[i]);
+            correspondenceTable.addValue("IoU", overlapPercent[i]);
+        }
+        if(correspondance.length > 0) correspondenceTable.incrementCounter();
+    }
+
 
 }

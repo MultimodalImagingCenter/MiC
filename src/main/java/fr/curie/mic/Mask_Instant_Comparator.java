@@ -27,7 +27,7 @@ package fr.curie.mic;
 
 import ij.*;
 import ij.gui.*;
-import ij.measure.ResultsTable;
+//import ij.measure.ResultsTable;
 import ij.plugin.LutLoader;
 import ij.plugin.PlugIn;
 import ij.plugin.RGBStackMerge;
@@ -84,9 +84,6 @@ public class Mask_Instant_Comparator implements PlugIn {
     private boolean showCorrespondances;
     private AnalysisResultDisplay resultDisplay;
 
-    private ResultsTable resultsTable;
-    private ResultsTable pixelObjectResultsTable;
-    private ResultsTable objectCorrespondanceTable;
 
 
     //    CONSTRUCTOR
@@ -353,10 +350,7 @@ public class Mask_Instant_Comparator implements PlugIn {
             for (int t = 0; t < dimensions[4]; t++) {
 //            Iterate on slices
                 for (int nrSlice = 1; nrSlice <= dimensions[3]; nrSlice++) {
-                   /* if (nrSlice > 1) {
-                        resultsTable.incrementCounter();
-                        pixelObjectResultsTable.incrementCounter();
-                    }*/
+
 //                --> If ROI given by user, filter the ROIs according to slice
                     Roi[] truthRoiStackTemp = null;
                     Roi[] testRoiStackTemp = null;
@@ -455,7 +449,7 @@ public class Mask_Instant_Comparator implements PlugIn {
 
     /**
      * Analysis of an image processor according to choice of method
-     * The results are displayed in a {@link ResultsTable}
+     * The results are displayed in a  ResultsTable
      *
      * @param truthMaskProc : processor of truth image to compare
      * @param testMaskProc  : processor of test image to compare
@@ -503,8 +497,7 @@ public class Mask_Instant_Comparator implements PlugIn {
             if(showGraphs) resultDisplay.addPlot(result, truthMaskIP.getShortTitle() + "/" + testMaskIP.getShortTitle());
 
             for(int i = 0; i < thresholds.length; i++){
-                if(i != 0) pixelObjectResultsTable.incrementCounter();
-
+                if(i != 0) resultDisplay.incrementThresholdTable();
                 resultDisplay.addThresholdContext(channel, time, nrSlice, analysis.getMaxTruth(), analysis.getMaxTest());
 
                 Metrics m = curveMetrics[i];
@@ -555,8 +548,8 @@ public class Mask_Instant_Comparator implements PlugIn {
             validateRoisToBorder(truthRois, validTruth, minDist, truthMaskProc.getWidth(), truthMaskProc.getHeight());
             validateRoisToBorder(testRois, validTest, minDist, truthMaskProc.getWidth(), truthMaskProc.getHeight());
             if (showCorrespondances) {
-                addCorrespondenceToTable(truthMaskIP.getTitle(), channel, time, nrSlice, truthRois, objectAssignation, overlapPercents, validTruth, objectCorrespondanceTable);
-                objectCorrespondanceTable.incrementCounter();
+                resultDisplay.addCorrespondence(truthMaskIP.getTitle(), channel, time, nrSlice, truthRois,
+                        objectAssignation, overlapPercents, validTruth, truthMaskIP.getWidth(), truthMaskIP.getHeight());
             }
             if (objectMethod) {
                 Metrics objectMetrics = computeROIMetricsAtThreshold(truthRois, testRois, objectAssignation, validTruth, validTest, overlapPercents, 0.5);
@@ -570,12 +563,7 @@ public class Mask_Instant_Comparator implements PlugIn {
                 double[] thresholds = buildThresholds(overlapMin, overlapMax, overlapInc);
                 Metrics[] curveMetrics = computeROIMetricsCurve(truthRois, testRois, objectAssignation, validTruth, validTest, overlapPercents, thresholds);
 
-                AnalysisResult result = new AnalysisResult();
-                result.setCurveMetrics(curveMetrics);
-                result.setThresholds(thresholds);
-                result.setChannel(channel);
-                result.setFrame(time);
-                result.setSlice(nrSlice);
+                AnalysisResult result = AnalysisResult.fromCurveMetrics(curveMetrics, thresholds, channel, time, nrSlice);
                 resultDisplay.addMeanScores(result);
                 resultDisplay.accumulate(result);
                 //create object Images
@@ -589,7 +577,7 @@ public class Mask_Instant_Comparator implements PlugIn {
                 if(showGraphs) resultDisplay.addPlot(result, truthMaskIP.getShortTitle() + "/" + testMaskIP.getShortTitle());
                 //add to result table
                 for (int i = 0; i < thresholds.length; i++) {
-                    if (i != 0) pixelObjectResultsTable.incrementCounter();
+                    if(i != 0) resultDisplay.incrementThresholdTable();
                     resultDisplay.addThresholdContext(channel, time, nrSlice, truthRois.length, testRois.length);
                     //addToResultTable(pixelObjectResultsTable, "Object", tp[i], fp[i], fn[i], precision[i], sensitivity[i], jaccardIndex[i], fmeasure[i], thresholds[i]);
                     Metrics m = result.getCurveMetric(i);
@@ -629,26 +617,6 @@ public class Mask_Instant_Comparator implements PlugIn {
             }
         }
 
-    }
-
-    private void addCorrespondenceToTable(String name, int channel, int time, int slice, Roi[] rois, int[] correspondance, double[] overlapPercent, boolean[] valid, ResultsTable rt) {
-        for (int i = 0; i < correspondance.length; i++) {
-            if (i != 0) rt.incrementCounter();
-            rt.addValue("image", name);
-            rt.addValue("channel", channel);
-            rt.addValue("frame", time);
-            rt.addValue("slice", slice);
-            rt.addValue("roi truth", i);
-            rt.addValue("centerX", rois[i].getBounds().getCenterX());
-            rt.addValue("centerY", rois[i].getBounds().getCenterY());
-            Rectangle roi = rois[i].getBounds();
-            double dist = Math.min(roi.getCenterX(), truthMaskIP.getWidth() - roi.getCenterX());
-            dist = Math.min(dist, Math.min(roi.getCenterY(), truthMaskIP.getHeight() - roi.getCenterY()));
-            rt.addValue("center distance to border", dist);
-            rt.addValue("distance validated (1 for true)", (valid[i]) ? 1 : 0);
-            rt.addValue("corresponding roi test", correspondance[i]);
-            rt.addValue("IoU", overlapPercent[i]);
-        }
     }
 
     public double compare2Rois(Roi truthRoi, Roi testRoi) {
@@ -833,6 +801,16 @@ public class Mask_Instant_Comparator implements PlugIn {
         //imp.getImageStack().getProcessor(imp.getStackIndex(index,slice,time)).copyBits(col,0,0,Blitter.COPY);
     }
 
+    private void addCompositeLabelObjects(ImagePlus imp, int index, int channel, int time, int slice, IoUAnalysis analysis, ImageProcessor truthMaskProc, ImageProcessor testMaskProc, double threshold){
+        IJ.log("add composite from label masks with threshold " + threshold);
+        ImageProcessor compositePlane = analysis.createCompositePlane(truthMaskProc, testMaskProc, threshold);
+        imp.getImageStack().getProcessor(imp.getStackIndex(index, slice, time + 1)).copyBits(compositePlane, 0, 0, Blitter.COPY);
+        if(compositePlane.getLut() != null){
+            CompositeImage ci = (CompositeImage) imp;
+            ci.setChannelLut(compositePlane.getLut(), index);
+        }
+    }
+
     private int findIndexOf(int[] array, int value) {
         for (int i = 0; i < array.length; i++) {
             if (array[i] == value) return i;
@@ -976,10 +954,6 @@ public class Mask_Instant_Comparator implements PlugIn {
         if (!truthMaskIP.isStack() || !testMaskIP.isStack()) showSummary = false;
     }
 
-    public void saveResults(String path) {
-        resultsTable.save(path);
-        resultsTable.reset();
-    }
 
     /**
      * Creates generate dialog with all the information to obtain
@@ -1124,9 +1098,6 @@ public class Mask_Instant_Comparator implements PlugIn {
         if (!gd.wasCanceled()) {
             getChoicesFromGD(gd, isOpenImage);
             resultDisplay = new AnalysisResultDisplay(truthMaskIP, testMaskIP);
-            resultsTable = resultDisplay.getResultsTable();
-            pixelObjectResultsTable = resultDisplay.getThresholdResultsTable();
-            objectCorrespondanceTable = resultDisplay.getCorrespondenceTable();
 
             if (!analysis()) return;
 
