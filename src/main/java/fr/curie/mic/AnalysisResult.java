@@ -49,6 +49,10 @@ public class AnalysisResult {
         this.curveMetrics = curveMetrics;
     }
 
+    public Metrics getCurveMetric(int index){
+        return curveMetrics[index];
+    }
+
     public double[] getThresholds() {
         return thresholds;
     }
@@ -174,9 +178,6 @@ public class AnalysisResult {
         );
     }
     public String getPlotTitle(String baseTitle){
-        return baseTitle +
-                " (C=" + channel +
-                ", T=" + frame +
-                ", Z=" + slice + ")";
+        return baseTitle + " [C" + channel + "-T" + frame + "-Z" + slice + "]";
     }
 }
