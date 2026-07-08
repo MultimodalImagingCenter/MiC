@@ -553,20 +553,7 @@ public class Mask_Instant_Comparator implements PlugIn {
             }
 
             if(showGraphs){
-                Plot plot = result.createPlot(
-                        truthMaskIP.getShortTitle()+"/"+
-                                testMaskIP.getShortTitle()+"("+nrSlice+") pixel/object graphs"
-                );
-
-                if(plotStack == null){
-                    plotStack = new PlotVirtualStack(
-                            plot.getProcessor().getWidth(),
-                            plot.getProcessor().getHeight()
-                    );
-                }
-
-                plotStack.addPlot(plot);
-
+                if(showGraphs) addPlotToStack(result, truthMaskIP.getShortTitle() + "/" + testMaskIP.getShortTitle());
             }
 
             for(int i = 0; i < thresholds.length; i++){
@@ -585,7 +572,6 @@ public class Mask_Instant_Comparator implements PlugIn {
                 pixelObjectResultsTable.addValue("AP = precision*sensitivity", precision[i] * sensitivity[i]);
             }
         }
-        IJ.log("Label mask mode : object metrics not implemented yet");
     }
 
     private void pairComparisonChoiceROI(int channel, int time, int nrSlice, ImageProcessor truthMaskProc, ImageProcessor testMaskProc, Roi[] truthRois, Roi[] testRois) {
@@ -643,6 +629,8 @@ public class Mask_Instant_Comparator implements PlugIn {
                 double[] fmeasure = new double[nbIndexes];
                 computeStats(truthRois, testRois, objectAssignation, validTruth, validTest, overlapPercents, 0.5, 0.5, 1, thresholds, tp, fp, fn, precision, sensitivity, jaccardIndex, fmeasure);
                 //create object Image
+
+
                 indexComposite++;
                 if (compositeImage != null)
                     addCompositeObjects(compositeImage[channel], indexComposite, channel, time, nrSlice, truthRois, testRois, objectAssignation, validTruth, validTest, overlapPercents, 0.5);
@@ -660,20 +648,31 @@ public class Mask_Instant_Comparator implements PlugIn {
                 double[] jaccardIndex = new double[nbIndexes];
                 double[] fmeasure = new double[nbIndexes];
                 computeStats(truthRois, testRois, objectAssignation, validTruth, validTest, overlapPercents, overlapMin, overlapMax, overlapInc, thresholds, tp, fp, fn, precision, sensitivity, jaccardIndex, fmeasure);
+
+                Metrics[] curveMetrics = new Metrics[nbIndexes];
+                for(int i = 0; i < nbIndexes; i++){
+                    curveMetrics[i] = new Metrics((int)Math.round(tp[i]),(int)Math.round(fp[i]),(int)Math.round(fn[i]));
+                }
+                AnalysisResult result = new AnalysisResult();
+                result.setCurveMetrics(curveMetrics);
+                result.setThresholds(thresholds);
+                result.setChannel(channel);
+                result.setFrame(time);
+                result.setSlice(nrSlice);
                 //computes mAP folowing definitions in Hirling et al, Nature methods 2022
                 //AP1 cannot be measured without confidence fixed IoU
                 //mAP1 cannot be computed without confidence average of AP1 for all classes (fixed IoU)
                 //AP2 correspond to jaccard index
                 //mAP2 corresponds to average of jaccard index for all IoU
-                double mAP2 = 0;
-                for (double AP_2 : jaccardIndex) mAP2 += AP_2;
-                mAP2 /= jaccardIndex.length;
-                resultsTable.addValue("mAP = 1/NIoU * sum(TP(IoU)/(TP(IoU)+FP(IoU)+FN(IoU)))", mAP2);
+//                double mAP2 = 0;
+//                for (double AP_2 : jaccardIndex) mAP2 += AP_2;
+//                mAP2 /= jaccardIndex.length;
+                resultsTable.addValue("mAP = 1/NIoU * sum(TP(IoU)/(TP(IoU)+FP(IoU)+FN(IoU)))", result.getMeanJaccard());
                 //AP3 corresponds to the average of precision for all IoU
-                double mAP3 = 0;
-                for (double AP_3 : precision) mAP3 += AP_3;
-                mAP3 /= precision.length;
-                resultsTable.addValue("mAP = 1/NIoU * sum(TP(IoU)/(TP(IoU)+FP(IoU)))", mAP3);
+//                double mAP3 = 0;
+//                for (double AP_3 : precision) mAP3 += AP_3;
+//                mAP3 /= precision.length;
+                resultsTable.addValue("mAP = 1/NIoU * sum(TP(IoU)/(TP(IoU)+FP(IoU)))", result.getMeanPrecision());
                 //mAP4 precision x recall
                 //mAP5 corresponds to the average of jaccard index for all slices
                 // AP4 COCO metric cannot compute without confidence average of AP1 for all IoU
@@ -696,8 +695,18 @@ public class Mask_Instant_Comparator implements PlugIn {
                     }
                 }
                 //create graphs
-                if (showGraphs)
-                    createGraphs(truthMaskIP.getShortTitle() + "/" + testMaskIP.getShortTitle() + "(" + nrSlice + ") pixel/object graphs", thresholds, precision, sensitivity, jaccardIndex, fmeasure);
+//                if (showGraphs)
+//                    createGraphs(truthMaskIP.getShortTitle() + "/" + testMaskIP.getShortTitle() + "(" + nrSlice + ") pixel/object graphs", thresholds, precision, sensitivity, jaccardIndex, fmeasure);
+                if(showGraphs){
+                    Plot plot = result.createPlot(truthMaskIP.getShortTitle() + "/" + testMaskIP.getShortTitle());
+                    if(plotStack == null){
+                        plotStack = new PlotVirtualStack(
+                                plot.getProcessor().getWidth(),
+                                plot.getProcessor().getHeight()
+                        );
+                    }
+                    plotStack.addPlot(plot);
+                }
                 //add to result table
                 for (int i = 0; i < thresholds.length; i++) {
                     if (i != 0) pixelObjectResultsTable.incrementCounter();
@@ -867,35 +876,11 @@ public class Mask_Instant_Comparator implements PlugIn {
 
     }
 
-    private void createGraphs(String title, double[] thresholds, double[] precision, double[] sensitivity, double[] jaccardIndex, double[] fmeasure) {
-        IJ.log("add graphs");
-        Plot plot = new Plot(title, "overlap threshold", "score");
-        //add precision
-        plot.setColor(Color.RED);
-        plot.add("line", thresholds, precision);
-        String labels = "precision (tp/(tp+fp))";
-        //add sensitivity
-        plot.setColor(Color.GREEN);
-        plot.add("line", thresholds, sensitivity);
-        labels += "\tsensitivity/recall (tp/(tp+fn))";
-        //add jaccard index
-        plot.setColor(Color.BLACK);
-        plot.add("line", thresholds, jaccardIndex);
-        labels += "\tjaccard index (tp/(tp+fp+fn))";
-        //add fmeasure
-        plot.setColor(Color.BLUE);
-        plot.add("line", thresholds, fmeasure);
-        labels += "\tfmeasure ((2*precision*sensitivity)/(precision+sensitivity))";
-        //add legend
-        plot.addLegend(labels);
-        plot.setLimits(thresholds[0], thresholds[thresholds.length - 1], 0, 1.1);
-        //PlotWindow pw = plot.show();
-        if (plotStack == null) {
-            plotStack = new PlotVirtualStack(plot.getProcessor().getWidth(), plot.getProcessor().getHeight());
-            plotStack.addPlot(plot);
-        } else {
-            plotStack.addPlot(plot);
-        }
+
+    private void addPlotToStack(AnalysisResult result, String baseTitle){
+        Plot plot = result.createPlot(result.getPlotTitle(baseTitle));
+        if(plotStack == null) plotStack = new PlotVirtualStack(plot.getProcessor().getWidth(), plot.getProcessor().getHeight());
+        plotStack.addPlot(plot);
     }
 
     private void createFinalGraph(String title, double[] thresholds, double[] tps, double[] fps, double[] fns) {

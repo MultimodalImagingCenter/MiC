@@ -22,6 +22,15 @@ public class Metrics {
         this.confidences = confidences;
         prepare();
     }
+    public Metrics(int tp, int fp, int fn){
+        this.IoUs = null;
+        this.IoUthreshold = Double.NaN;
+        this.confidences = null;
+
+        this.tp = tp;
+        this.fp = fp;
+        this.fn = fn;
+    }
 
     public void prepare(){
         if(IoUthreshold<0) pixelAnalysis();

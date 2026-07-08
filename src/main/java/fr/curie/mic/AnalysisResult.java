@@ -12,6 +12,18 @@ public class AnalysisResult {
     private int channel;
     private int frame;
     private int slice;
+    private String truthImageName;
+    private String testImageName;
+//computes mAP folowing definitions in Hirling et al, Nature methods 2022
+    //AP1 cannot be measured without confidence fixed IoU
+    //mAP1 cannot be computed without confidence average of AP1 for all classes (fixed IoU)
+    //AP2 correspond to jaccard index
+    //mAP2 corresponds to average of jaccard index for all IoU
+    //mAP3 corresponds to the average of precision for all IoU
+    //mAP4 precision x recall
+    //mAP5 corresponds to the average of jaccard index for all slices
+    // AP4 COCO metric cannot compute without confidence average of AP1 for all IoU
+    //mAP6 = AP5 = average of AP4 for all classes cannot compute without confidence
 
     public Metrics getPixelMetrics() {
         return pixelMetrics;
@@ -152,5 +164,19 @@ public class AnalysisResult {
         );
 
         return plot;
+    }
+    public Plot createPlot(){
+        return createPlot(
+                "Metrics" +
+                        " (C=" + channel +
+                        ", T=" + frame +
+                        ", Z=" + slice + ")"
+        );
+    }
+    public String getPlotTitle(String baseTitle){
+        return baseTitle +
+                " (C=" + channel +
+                ", T=" + frame +
+                ", Z=" + slice + ")";
     }
 }
