@@ -1,7 +1,6 @@
 package fr.curie.mic;
 
 import ij.gui.Plot;
-import ij.measure.ResultsTable;
 
 import java.awt.Color;
 
@@ -16,9 +15,6 @@ public class AnalysisResult {
     private int slice;
     private String truthImageName;
     private String testImageName;
-    private ResultsTable resultsTable;
-    private ResultsTable thresholdResultsTable;
-    private ResultsTable correspondenceTable;
 //computes mAP folowing definitions in Hirling et al, Nature methods 2022
     //AP1 cannot be measured without confidence fixed IoU
     //mAP1 cannot be computed without confidence average of AP1 for all classes (fixed IoU)

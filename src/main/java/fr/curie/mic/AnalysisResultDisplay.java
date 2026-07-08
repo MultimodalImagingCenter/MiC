@@ -181,20 +181,6 @@ public class AnalysisResultDisplay {
             correspondenceTable.incrementCounter();
         }
     }
-    public void addMetric(String method, Metrics metrics){
-        addToResultTable(
-                resultsTable,
-                method,
-                metrics.getTP(),
-                metrics.getFP(),
-                metrics.getFN(),
-                metrics.getPrecision(),
-                metrics.getSensitivity(),
-                metrics.getJaccardIndex(),
-                metrics.getF1measure(),
-                -1
-        );
-    }
 
     /**
      * Calculate the stats and add it all to the result table
@@ -236,6 +222,89 @@ public class AnalysisResultDisplay {
         resultsTable.addValue(method + " Jaccard Index", jaccardIndex);/*(TP/(TP+FN+FP))*/
         resultsTable.addValue(method + " F-measure", fmeasure);/*(2*Precision/(precision+recall))*/
 
+    }
+    /*public void addMetric(String method, Metrics metrics){
+        addToResultTable(
+                resultsTable,
+                method,
+                metrics.getTP(),
+                metrics.getFP(),
+                metrics.getFN(),
+                metrics.getPrecision(),
+                metrics.getSensitivity(),
+                metrics.getJaccardIndex(),
+                metrics.getF1measure(),
+                -1
+        );
+    }*/
+
+    public void addMetric(String method, Metrics metrics){
+        addMetric(resultsTable, method, metrics, -1);
+    }
+
+    public void addMetric(String method, Metrics metrics, double threshold){
+        addMetric(thresholdResultsTable, method, metrics, threshold);
+    }
+
+    private void addMetric(ResultsTable rt, String method, Metrics metrics, double threshold){
+        if(threshold >= 0) rt.addValue(method + " IoU threshold", threshold);
+
+        rt.addValue(method + " TP", metrics.getTP());
+        rt.addValue(method + " FP", metrics.getFP());
+        rt.addValue(method + " FN", metrics.getFN());
+        rt.addValue(method + " Precision", metrics.getPrecision());
+        rt.addValue(method + " Recall/Sensitivity", metrics.getSensitivity());
+        rt.addValue(method + " Jaccard Index", metrics.getJaccardIndex());
+        rt.addValue(method + " F-measure", metrics.getF1measure());
+    }
+
+    public void addMainContext(int channel, int frame, int slice, double minDist, double minSize){
+        resultsTable.addValue("Truth image", truthMaskIP.getTitle());
+        resultsTable.addValue("Test image", testMaskIP.getTitle());
+        resultsTable.addValue("Channel", channel);
+        resultsTable.addValue("Frame", frame);
+        resultsTable.addValue("Slice number", slice);
+        resultsTable.addValue("minimum distance to border", minDist);
+        resultsTable.addValue("minimum size of objects", minSize);
+    }
+    public void addMainObjectCounts(int truthObjects, int testObjects){
+        resultsTable.addValue("Truth objects", truthObjects);
+        resultsTable.addValue("Test objects", testObjects);
+    }
+    public void addMeanScores(AnalysisResult result){
+        resultsTable.addValue("mAP = 1/NIoU * sum(TP(IoU)/(TP(IoU)+FP(IoU)+FN(IoU)))", result.getMeanJaccard());
+        resultsTable.addValue("mAP = 1/NIoU * sum(TP(IoU)/(TP(IoU)+FP(IoU)))", result.getMeanPrecision());
+    }
+    public void addThresholdContext(int channel, int frame, int slice, int truthObjects, int testObjects){
+        thresholdResultsTable.addValue("Truth image", truthMaskIP.getTitle());
+        thresholdResultsTable.addValue("Test image", testMaskIP.getTitle());
+        thresholdResultsTable.addValue("channel", channel);
+        thresholdResultsTable.addValue("frame", frame);
+        thresholdResultsTable.addValue("Slice number", slice);
+        thresholdResultsTable.addValue("Truth objects", truthObjects);
+        thresholdResultsTable.addValue("Test objects", testObjects);
+    }
+    public void addThresholdAP(Metrics metric){
+        thresholdResultsTable.addValue("AP = precision*sensitivity", metric.getAP());
+    }
+    public void incrementMainTable(){
+        resultsTable.incrementCounter();
+    }
+    public void incrementThresholdTable(){
+        thresholdResultsTable.incrementCounter();
+    }
+    public void incrementCorrespondenceTable(){
+        correspondenceTable.incrementCounter();
+    }
+    public void deleteLastRows(){
+        if(resultsTable.getCounter() > 0) resultsTable.deleteRow(resultsTable.getCounter() - 1);
+        if(thresholdResultsTable.getCounter() > 0) thresholdResultsTable.deleteRow(thresholdResultsTable.getCounter() - 1);
+        if(correspondenceTable.getCounter() > 0) correspondenceTable.deleteRow(correspondenceTable.getCounter() - 1);
+    }
+    public void showTables(boolean pixelObjectMethod, boolean objectMethod, boolean showCorrespondances){
+        resultsTable.show("Mask comparison results");
+        if(pixelObjectMethod) thresholdResultsTable.show("Mask comparison Object with IoU thresholds");
+        if((pixelObjectMethod || objectMethod) && showCorrespondances) correspondenceTable.show("Objects correspondences");
     }
 
 }

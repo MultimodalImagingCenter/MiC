@@ -353,10 +353,10 @@ public class Mask_Instant_Comparator implements PlugIn {
             for (int t = 0; t < dimensions[4]; t++) {
 //            Iterate on slices
                 for (int nrSlice = 1; nrSlice <= dimensions[3]; nrSlice++) {
-                    if (nrSlice > 1) {
+                   /* if (nrSlice > 1) {
                         resultsTable.incrementCounter();
                         pixelObjectResultsTable.incrementCounter();
-                    }
+                    }*/
 //                --> If ROI given by user, filter the ROIs according to slice
                     Roi[] truthRoiStackTemp = null;
                     Roi[] testRoiStackTemp = null;
@@ -369,13 +369,8 @@ public class Mask_Instant_Comparator implements PlugIn {
                         else testRoiStackTemp = setSliceRoi(testRois, 0, 0, 0);
                     }
 //                --> Set colum with images names*/
-                    resultsTable.addValue("Truth image", truthMaskIP.getTitle());
-                    resultsTable.addValue("Test image", testMaskIP.getTitle());
-                    resultsTable.addValue("Channel", c);
-                    resultsTable.addValue("Frame", t);
-                    resultsTable.addValue("Slice number", nrSlice);
-                    resultsTable.addValue("minimum distance to border", minDist);
-                    resultsTable.addValue("minimum size of objects", minSize);
+                    resultDisplay.addMainContext(c, t, nrSlice, minDist, minSize);
+
 
 //                --> Do the comparisons by changing the slice displayed (and so the main image processor)
                     if (truthMaskIP.isStack()) {
@@ -383,17 +378,13 @@ public class Mask_Instant_Comparator implements PlugIn {
                         testMaskIP.setPosition(c+1,nrSlice,t+1);
                     }
                     pairComparisonChoice(c, t, nrSlice, truthMaskIP.getProcessor(), testMaskIP.getProcessor(), truthRoiStackTemp, testRoiStackTemp);
-                    resultsTable.incrementCounter();
-                    if (pixelObjectResultsTable != null) pixelObjectResultsTable.incrementCounter();
+                    resultDisplay.incrementMainTable();
+                    resultDisplay.incrementThresholdTable();
                 }
             }
         }
         //remove last line of resultsTable
-        resultsTable.deleteRow(resultsTable.getCounter() - 1);
-        if (pixelObjectResultsTable != null)
-            pixelObjectResultsTable.deleteRow(pixelObjectResultsTable.getCounter() - 1);
-        if (objectCorrespondanceTable != null)
-            objectCorrespondanceTable.deleteRow(objectCorrespondanceTable.getCounter() - 1);
+        resultDisplay.deleteLastRows();
 
 
         setLUT(truthMaskIP);
@@ -490,8 +481,7 @@ public class Mask_Instant_Comparator implements PlugIn {
         result.setFrame(time);
         result.setSlice(nrSlice);
 
-        resultsTable.addValue("Truth objects", analysis.getMaxTruth());
-        resultsTable.addValue("Test objects", analysis.getMaxTest());
+        resultDisplay.addMainObjectCounts(analysis.getMaxTruth(), analysis.getMaxTest());
 
         if(pixelMethod){
             //Metrics metrics = analysis.getPixelMetrics();
@@ -501,15 +491,13 @@ public class Mask_Instant_Comparator implements PlugIn {
         if(objectMethod){
             //Metrics metrics = analysis.getMetrics(0.5);
             Metrics metrics = result.getObjectMetrics();
-            addToResultTable(resultsTable,"Object (IoU=0.5)",metrics.getTP(),metrics.getFP(),metrics.getFN(),
-                    metrics.getPrecision(),metrics.getSensitivity(),metrics.getJaccardIndex(),metrics.getF1measure(),-1);
+            resultDisplay.addMetric("Object (IoU=0.5)", metrics);
         }
         if(pixelObjectMethod) {
             Metrics[] curveMetrics = result.getCurveMetrics();
             double[] thresholds = result.getThresholds();
 
-            resultsTable.addValue("mAP = 1/NIoU * sum(TP(IoU)/(TP(IoU)+FP(IoU)+FN(IoU)))", result.getMeanJaccard());
-            resultsTable.addValue("mAP = 1/NIoU * sum(TP(IoU)/(TP(IoU)+FP(IoU)))", result.getMeanPrecision());
+            resultDisplay.addMeanScores(result);
             resultDisplay.accumulate(result);
 
             if(showGraphs) resultDisplay.addPlot(result, truthMaskIP.getShortTitle() + "/" + testMaskIP.getShortTitle());
@@ -517,19 +505,12 @@ public class Mask_Instant_Comparator implements PlugIn {
             for(int i = 0; i < thresholds.length; i++){
                 if(i != 0) pixelObjectResultsTable.incrementCounter();
 
-                pixelObjectResultsTable.addValue("Truth image", truthMaskIP.getTitle());
-                pixelObjectResultsTable.addValue("Test image", testMaskIP.getTitle());
-                pixelObjectResultsTable.addValue("channel", channel);
-                pixelObjectResultsTable.addValue("frame", time);
-                pixelObjectResultsTable.addValue("Slice number", nrSlice);
-                pixelObjectResultsTable.addValue("Truth objects", analysis.getMaxTruth());
-                pixelObjectResultsTable.addValue("Test objects", analysis.getMaxTest());
+                resultDisplay.addThresholdContext(channel, time, nrSlice, analysis.getMaxTruth(), analysis.getMaxTest());
 
                 Metrics m = curveMetrics[i];
 
-                addToResultTable(pixelObjectResultsTable,"Object", m.getTP(), m.getFP(), m.getFN(),
-                        m.getPrecision(), m.getSensitivity(), m.getJaccardIndex(), m.getF1measure(), thresholds[i]);
-                pixelObjectResultsTable.addValue("AP = precision*sensitivity", m.getAP());
+                resultDisplay.addMetric("Object", m, thresholds[i]);
+                resultDisplay.addThresholdAP(m);
             }
         }
     }
@@ -551,8 +532,7 @@ public class Mask_Instant_Comparator implements PlugIn {
             IJ.log("comparison test ROIs: " + testRois.length + " no need to create from image");
         }
         if (objectMethod) {
-            resultsTable.addValue("Truth objects", truthRois.length);
-            resultsTable.addValue("Test objects", testRois.length);
+            resultDisplay.addMainObjectCounts(truthRois.length, testRois.length);
         }
         truthMaskProc = labeledImage(truthMaskProc.getWidth(), truthMaskProc.getHeight(), truthRois);
         testMaskProc = labeledImage(testMaskProc.getWidth(), testMaskProc.getHeight(), testRois);
@@ -561,10 +541,11 @@ public class Mask_Instant_Comparator implements PlugIn {
 //            LAUNCH METHODS
         int indexComposite = 1;
         if (pixelMethod) {
-            pixelComparison(truthMaskProc, testMaskProc);
-            if (compositeImage != null)
-                addCompositePixels(compositeImage[channel], indexComposite, channel, time, nrSlice);
+            Metrics pixelMetrics = computePixelMetrics(truthMaskProc, testMaskProc);
+            resultDisplay.addMetric("Pixel", pixelMetrics);
+            if (compositeImage != null) addCompositePixels(compositeImage[channel], indexComposite, channel, time, nrSlice);
         }
+
         if (objectMethod || pixelObjectMethod) {
             int[] objectAssignation = new int[truthRois.length];
             double[] overlapPercents = new double[truthRois.length];
@@ -581,7 +562,7 @@ public class Mask_Instant_Comparator implements PlugIn {
                 Metrics objectMetrics = computeROIMetricsAtThreshold(truthRois, testRois, objectAssignation, validTruth, validTest, overlapPercents, 0.5);
                 indexComposite++;
                 if(compositeImage != null) addCompositeObjects(compositeImage[channel], indexComposite, channel, time, nrSlice, truthRois, testRois, objectAssignation, validTruth, validTest, overlapPercents, 0.5);
-                addToResultTable(resultsTable, "Object (IoU=0.5)", objectMetrics.getTP(), objectMetrics.getFP(), objectMetrics.getFN(), objectMetrics.getPrecision(), objectMetrics.getSensitivity(), objectMetrics.getJaccardIndex(), objectMetrics.getF1measure(), -1);
+                resultDisplay.addMetric("Object (IoU=0.5)", objectMetrics);
 
             }
             if (pixelObjectMethod) {
@@ -595,35 +576,7 @@ public class Mask_Instant_Comparator implements PlugIn {
                 result.setChannel(channel);
                 result.setFrame(time);
                 result.setSlice(nrSlice);
-                //computes mAP folowing definitions in Hirling et al, Nature methods 2022
-                //AP1 cannot be measured without confidence fixed IoU
-                //mAP1 cannot be computed without confidence average of AP1 for all classes (fixed IoU)
-                //AP2 correspond to jaccard index
-                //mAP2 corresponds to average of jaccard index for all IoU
-//                double mAP2 = 0;
-//                for (double AP_2 : jaccardIndex) mAP2 += AP_2;
-//                mAP2 /= jaccardIndex.length;
-                resultsTable.addValue("mAP = 1/NIoU * sum(TP(IoU)/(TP(IoU)+FP(IoU)+FN(IoU)))", result.getMeanJaccard());
-                //AP3 corresponds to the average of precision for all IoU
-//                double mAP3 = 0;
-//                for (double AP_3 : precision) mAP3 += AP_3;
-//                mAP3 /= precision.length;
-                resultsTable.addValue("mAP = 1/NIoU * sum(TP(IoU)/(TP(IoU)+FP(IoU)))", result.getMeanPrecision());
-                //mAP4 precision x recall
-                //mAP5 corresponds to the average of jaccard index for all slices
-                // AP4 COCO metric cannot compute without confidence average of AP1 for all IoU
-                //mAP6 = AP5 = average of AP4 for all classes cannot compute without confidence
-                //store for global measure
-                /*if (tps == null) tps = new double[nbIndexes];
-                if (fns == null) fns = new double[nbIndexes];
-                if (fps == null) fps = new double[nbIndexes];
-                if (this.thresholds == null) this.thresholds = thresholds;
-                for(int pos = 0; pos < nbIndexes; pos++){
-                    Metrics m = result.getCurveMetric(pos);
-                    tps[pos] += m.getTP();
-                    fps[pos] += m.getFP();
-                    fns[pos] += m.getFN();
-                }*/
+                resultDisplay.addMeanScores(result);
                 resultDisplay.accumulate(result);
                 //create object Images
                 if (compositeImage != null) {
@@ -637,19 +590,12 @@ public class Mask_Instant_Comparator implements PlugIn {
                 //add to result table
                 for (int i = 0; i < thresholds.length; i++) {
                     if (i != 0) pixelObjectResultsTable.incrementCounter();
-                    pixelObjectResultsTable.addValue("Truth image", truthMaskIP.getTitle());
-                    pixelObjectResultsTable.addValue("Test image", testMaskIP.getTitle());
-                    pixelObjectResultsTable.addValue("channel", channel);
-                    pixelObjectResultsTable.addValue("frame", time);
-                    pixelObjectResultsTable.addValue("Slice number", nrSlice);
-                    pixelObjectResultsTable.addValue("Truth objects", truthRois.length);
-                    pixelObjectResultsTable.addValue("Test objects", testRois.length);
+                    resultDisplay.addThresholdContext(channel, time, nrSlice, truthRois.length, testRois.length);
                     //addToResultTable(pixelObjectResultsTable, "Object", tp[i], fp[i], fn[i], precision[i], sensitivity[i], jaccardIndex[i], fmeasure[i], thresholds[i]);
                     Metrics m = result.getCurveMetric(i);
-                    addToResultTable(pixelObjectResultsTable, "Object", m.getTP(), m.getFP(), m.getFN(),
-                            m.getPrecision(), m.getSensitivity(), m.getJaccardIndex(), m.getF1measure(), thresholds[i]);
+                    resultDisplay.addMetric("Object", m, thresholds[i]);
                     //pixelObjectResultsTable.addValue("AP = precision*sensitivity", precision[i] * sensitivity[i]);
-                    pixelObjectResultsTable.addValue("AP = precision*sensitivity", m.getAP());
+                    resultDisplay.addThresholdAP(m);
                 }
             }
         }
@@ -894,40 +840,26 @@ public class Mask_Instant_Comparator implements PlugIn {
         return -1;
     }
 
-
-    /**
-     * compares each pixel of the test image to the truth one, to measure the difference between them
-     */
-    private void pixelComparison(ImageProcessor truthMaskProc, ImageProcessor testMaskProc) {
-        double truePositive = 0;
-        double falsePositive = 0;
-        double falseNegative = 0;
+    private Metrics computePixelMetrics(ImageProcessor truthMaskProc, ImageProcessor testMaskProc){
+        int truePositive = 0;
+        int falsePositive = 0;
+        int falseNegative = 0;
         int[][] truthPixelsValues = truthMaskProc.getIntArray();
         int[][] testPixelsValues = testMaskProc.getIntArray();
-
-        /*for each pixel compare value in truth and test values*/
-        for (int x = 0; x < truthMaskProc.getWidth(); x++) {
-            for (int y = 0; y < truthMaskProc.getHeight(); y++) {
+        for(int x = 0; x < truthMaskProc.getWidth(); x++){
+            for(int y = 0; y < truthMaskProc.getHeight(); y++){
                 int truthValue = truthPixelsValues[x][y];
                 int testValue = testPixelsValues[x][y];
-                if (truthValue != 0) {
-                    if (testValue != 0) { /*both images' pixel corresponds to an object*/
-                        truePositive++;
-                    } else { /*object of truth not found in test*/
-                        falseNegative++;
-                    }
-                } else {
-                    if (testValue != 0) { /*object in test absent in truth*/
-                        falsePositive++;
-                    }
+                if(truthValue != 0){
+                    if(testValue != 0) truePositive++;
+                    else falseNegative++;
+                }else{
+                    if(testValue != 0) falsePositive++;
                 }
             }
         }
-        addToResultTable("Pixel", truePositive, falsePositive, falseNegative);
+        return new Metrics(truePositive, falsePositive, falseNegative);
     }
-
-
-
 
     /**
      * @param imagePath : path of image
@@ -1199,10 +1131,7 @@ public class Mask_Instant_Comparator implements PlugIn {
             if (!analysis()) return;
 
 
-            resultsTable.show("Mask comparison results");
-            if (pixelObjectMethod) pixelObjectResultsTable.show("Mask comparison Object with IoU thresholds");
-            if ((pixelObjectMethod || objectMethod) && showCorrespondances)
-                objectCorrespondanceTable.show("Objects correspondences");
+            resultDisplay.showTables(pixelObjectMethod, objectMethod, showCorrespondances);
 
             if (showSummary) {
                 resultDisplay.showSummaryGraph();
@@ -1216,48 +1145,6 @@ public class Mask_Instant_Comparator implements PlugIn {
             if(resultDisplay != null) resultDisplay.showPlots();
             if(useROICalculation())setRoisInRoiManager(allTruthRoi);
         }
-    }
-
-    /**
-     * Calculate the stats and add it all to the result table
-     *
-     * @param method : Object, Pixel or Object-Pixel
-     * @param tp     : True Positives
-     * @param fp     : False Positives
-     * @param fn     : False Negatives
-     */
-    private void addToResultTable(String method, double tp, double fp, double fn) {
-//        STATISTICS
-        double precision = tp / (tp + fp);
-        double recall = tp / (tp + fn);
-        double jaccardIndex = tp / (tp + fn + fp);
-        double fMeasure = 2 * precision * recall / (precision + recall);
-
-//        ADD TO RESULT TABLE
-        addToResultTable(resultsTable, method, tp, fp, fn, precision, recall, jaccardIndex, fMeasure, -1);
-
-    }
-
-    /**
-     * Calculate the stats and add it all to the result table
-     *
-     * @param method : Object, Pixel or Object-Pixel
-     * @param tp     : True Positives
-     * @param fp     : False Positives
-     * @param fn     : False Negatives
-     */
-    private void addToResultTable(ResultsTable resultsTable, String method, double tp, double fp, double fn, double precision, double sensitivity, double jaccardIndex, double fmeasure, double threshold) {
-
-//        ADD TO RESULT TABLE
-        if (threshold >= 0) resultsTable.addValue(method + " IoU threshold", threshold);
-        resultsTable.addValue(method + " TP", tp);
-        resultsTable.addValue(method + " FP", fp);
-        resultsTable.addValue(method + " FN", fn);
-        resultsTable.addValue(method + " Precision", precision);/*(TP/Positives)*/
-        resultsTable.addValue(method + " Recall/Sensitivity", sensitivity);/*(TP/Truth)*/
-        resultsTable.addValue(method + " Jaccard Index", jaccardIndex);/*(TP/(TP+FN+FP))*/
-        resultsTable.addValue(method + " F-measure", fmeasure);/*(2*Precision/(precision+recall))*/
-
     }
 
 }
