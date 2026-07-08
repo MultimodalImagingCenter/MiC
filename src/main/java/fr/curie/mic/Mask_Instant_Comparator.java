@@ -474,34 +474,38 @@ public class Mask_Instant_Comparator implements PlugIn {
         result.setChannel(channel);
         result.setFrame(time);
         result.setSlice(nrSlice);
+        int indexComposite = 1;
 
         resultDisplay.addMainObjectCounts(analysis.getMaxTruth(), analysis.getMaxTest());
 
         if(pixelMethod){
-            //Metrics metrics = analysis.getPixelMetrics();
             Metrics metrics = result.getPixelMetrics();
             resultDisplay.addMetric("Pixel", metrics);
+            if(compositeImage != null) addCompositePixels(compositeImage[channel], indexComposite, channel, time, nrSlice);
         }
+
         if(objectMethod){
-            //Metrics metrics = analysis.getMetrics(0.5);
             Metrics metrics = result.getObjectMetrics();
+            indexComposite++;
+            if(compositeImage != null) if(compositeImage != null) addCompositeLabelObjects(compositeImage[channel], indexComposite, channel, time, nrSlice, analysis, truth.getProcessor(), test.getProcessor(), 0.5);
             resultDisplay.addMetric("Object (IoU=0.5)", metrics);
         }
         if(pixelObjectMethod) {
             Metrics[] curveMetrics = result.getCurveMetrics();
             double[] thresholds = result.getThresholds();
-
             resultDisplay.addMeanScores(result);
             resultDisplay.accumulate(result);
-
             if(showGraphs) resultDisplay.addPlot(result, truthMaskIP.getShortTitle() + "/" + testMaskIP.getShortTitle());
-
+            if(compositeImage != null){
+                for(double threshold : thresholds){
+                    indexComposite++;
+                    addCompositeLabelObjects(compositeImage[channel], indexComposite, channel, time, nrSlice, analysis, truth.getProcessor(), test.getProcessor(), threshold);
+                }
+            }
             for(int i = 0; i < thresholds.length; i++){
                 if(i != 0) resultDisplay.incrementThresholdTable();
                 resultDisplay.addThresholdContext(channel, time, nrSlice, analysis.getMaxTruth(), analysis.getMaxTest());
-
                 Metrics m = curveMetrics[i];
-
                 resultDisplay.addMetric("Object", m, thresholds[i]);
                 resultDisplay.addThresholdAP(m);
             }
@@ -802,13 +806,24 @@ public class Mask_Instant_Comparator implements PlugIn {
     }
 
     private void addCompositeLabelObjects(ImagePlus imp, int index, int channel, int time, int slice, IoUAnalysis analysis, ImageProcessor truthMaskProc, ImageProcessor testMaskProc, double threshold){
-        IJ.log("add composite from label masks with threshold " + threshold);
+        IJ.log("add composite from label masks with threshold " + threshold + " at display channel " + index);
         ImageProcessor compositePlane = analysis.createCompositePlane(truthMaskProc, testMaskProc, threshold);
-        imp.getImageStack().getProcessor(imp.getStackIndex(index, slice, time + 1)).copyBits(compositePlane, 0, 0, Blitter.COPY);
-        if(compositePlane.getLut() != null){
-            CompositeImage ci = (CompositeImage) imp;
-            ci.setChannelLut(compositePlane.getLut(), index);
+        IJ.log("label composite source type = " + compositePlane.getClass().getSimpleName() + ", max = " + compositePlane.getMax());
+        ImageProcessor processorToCopy = compositePlane;
+        if(compositePlane instanceof ColorProcessor){
+            ImagePlus rgb = new ImagePlus("label composite", compositePlane.duplicate());
+            ImageConverter converter = new ImageConverter(rgb);
+            converter.convertRGBtoIndexedColor(256);
+            processorToCopy = rgb.getProcessor();
         }
+        int stackIndex = imp.getStackIndex(index, slice, time + 1);
+        imp.getImageStack().getProcessor(stackIndex).copyBits(processorToCopy, 0, 0, Blitter.COPY);
+        IJ.log("label composite target max channel " + index + " = " + imp.getImageStack().getProcessor(stackIndex).getMax());
+        CompositeImage ci = (CompositeImage) imp;
+        if(processorToCopy.getLut() != null) ci.setChannelLut(processorToCopy.getLut(), index);
+        imp.setPosition(index, slice, time + 1);
+        imp.resetDisplayRange();
+        imp.updateAndDraw();
     }
 
     private int findIndexOf(int[] array, int value) {
