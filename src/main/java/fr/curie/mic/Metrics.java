@@ -31,6 +31,11 @@ public class Metrics {
         this.fp = fp;
         this.fn = fn;
     }
+    public void add(Metrics other){
+        this.tp += other.tp;
+        this.fp += other.fp;
+        this.fn += other.fn;
+    }
 
     public void prepare(){
         if(IoUthreshold<0) pixelAnalysis();

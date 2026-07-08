@@ -86,10 +86,7 @@ public class Mask_Instant_Comparator implements PlugIn {
     private boolean showSummary;
     private boolean showCorrespondances;
     private AnalysisResultDisplay resultDisplay;
-    private double[] tps;
-    private double[] fns;
-    private double[] fps;
-    private double[] thresholds;
+
 
     //    CONSTRUCTOR
 
@@ -515,7 +512,7 @@ public class Mask_Instant_Comparator implements PlugIn {
             resultsTable.addValue("mAP = 1/NIoU * sum(TP(IoU)/(TP(IoU)+FP(IoU)+FN(IoU)))", result.getMeanJaccard());
             resultsTable.addValue("mAP = 1/NIoU * sum(TP(IoU)/(TP(IoU)+FP(IoU)))", result.getMeanPrecision());
 
-            if(tps == null) tps = new double[nbIndexes];
+           /* if(tps == null) tps = new double[nbIndexes];
             if(fps == null) fps = new double[nbIndexes];
             if(fns == null) fns = new double[nbIndexes];
             if(this.thresholds == null) this.thresholds = thresholds;
@@ -525,7 +522,8 @@ public class Mask_Instant_Comparator implements PlugIn {
                 tps[i] += m.getTP();
                 fps[i] += m.getFP();
                 fns[i] += m.getFN();
-            }
+            }*/
+            resultDisplay.accumulate(result);
 
             if(showGraphs) resultDisplay.addPlot(result, truthMaskIP.getShortTitle() + "/" + testMaskIP.getShortTitle());
 
@@ -629,7 +627,7 @@ public class Mask_Instant_Comparator implements PlugIn {
                 // AP4 COCO metric cannot compute without confidence average of AP1 for all IoU
                 //mAP6 = AP5 = average of AP4 for all classes cannot compute without confidence
                 //store for global measure
-                if (tps == null) tps = new double[nbIndexes];
+                /*if (tps == null) tps = new double[nbIndexes];
                 if (fns == null) fns = new double[nbIndexes];
                 if (fps == null) fps = new double[nbIndexes];
                 if (this.thresholds == null) this.thresholds = thresholds;
@@ -638,7 +636,8 @@ public class Mask_Instant_Comparator implements PlugIn {
                     tps[pos] += m.getTP();
                     fps[pos] += m.getFP();
                     fns[pos] += m.getFN();
-                }
+                }*/
+                resultDisplay.accumulate(result);
                 //create object Images
                 if (compositeImage != null) {
                     for (double range : thresholds) {
@@ -775,55 +774,10 @@ public class Mask_Instant_Comparator implements PlugIn {
 
     }
 
-    private void createFinalGraph(String title, double[] thresholds, double[] tps, double[] fps, double[] fns) {
-        double[] precision = new double[thresholds.length];
-        double[] sensitivity = new double[thresholds.length];
-        double[] jaccard = new double[thresholds.length];
-        double[] fmeasure = new double[thresholds.length];
-        computeStats(tps, fps, fns, precision, sensitivity, jaccard, fmeasure);
-        IJ.log("add graphs");
-        Plot plot = new Plot(title, "overlap threshold", "score");
-        //add precision
-        plot.setColor(Color.RED);
-        plot.add("line", thresholds, precision);
-        String labels = "precision (tp/(tp+fp))";
-        //add sensitivity
-        plot.setColor(Color.GREEN);
-        plot.add("line", thresholds, sensitivity);
-        labels += "\tsensitivity/recall (tp/(tp+fn))";
-        //add jaccard index
-        plot.setColor(Color.BLACK);
-        plot.add("line", thresholds, jaccard);
-        labels += "\tjaccard index (tp/(tp+fp+fn))";
-        //add fmeasure
-        plot.setColor(Color.BLUE);
-        plot.add("line", thresholds, fmeasure);
-        labels += "\tfmeasure ((2*precision*sensitivity)/(precision+sensitivity))";
-        //add legend
-        plot.addLegend(labels);
-        plot.setLimits(thresholds[0], thresholds[thresholds.length - 1], 0, 1.1);
-        PlotWindow pw = plot.show();
-
-        ResultsTable rt = new ResultsTable();
-        for (int i = 0; i < thresholds.length; i++) {
-            if (i != 0) rt.incrementCounter();
-            addToResultTable(rt, "Object", tps[i], fps[i], fns[i], precision[i], sensitivity[i], jaccard[i], fmeasure[i], thresholds[i]);
-        }
-        rt.show(testMaskIP.getTitle() + " sum of all objects");
-
-    }
 
 
-    private void computeStats(double[] tps, double[] fps, double[] fns, double[] precision, double[] sensitivity, double[] jaccardIndex, double[] fmeasure) {
-        for (int index = 0; index < tps.length; index++) {
-//        STATISTICS
-            precision[index] = tps[index] / (tps[index] + fps[index]);
-            sensitivity[index] = tps[index] / (tps[index] + fns[index]);
-            jaccardIndex[index] = tps[index] / (tps[index] + fns[index] + fps[index]);
-            fmeasure[index] = 2 * precision[index] * sensitivity[index] / (precision[index] + sensitivity[index]);
-        }
 
-    }
+
 
     private double[] buildThresholds(double rangeMin, double rangeMax, double rangeIncrement){
         int nbIndexes = (int)Math.round((rangeMax - rangeMin) / rangeIncrement + 1);
@@ -1320,8 +1274,8 @@ public class Mask_Instant_Comparator implements PlugIn {
             if ((pixelObjectMethod || objectMethod) && showCorrespondances)
                 objectCorrespondanceTable.show("Objects correspondences");
 
-            if (showSummary && truthMaskIP.getNSlices() > 1 && tps != null) {
-                createFinalGraph("plot summing all objects from stack", thresholds, tps, fps, fns);
+            if (showSummary) {
+                resultDisplay.showSummaryGraph();
             }
 
             if (compositeImage != null) {
