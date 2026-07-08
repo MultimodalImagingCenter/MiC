@@ -77,15 +77,16 @@ public class Mask_Instant_Comparator implements PlugIn {
     private Roi[] testRois;
     private ArrayList<Roi[]> allTruthRoi;
 
-    //    Result Table
-    private ResultsTable resultsTable;
-    private ResultsTable pixelObjectResultsTable;
-    private ResultsTable objectCorrespondanceTable;
+
     // graphs
     private boolean showGraphs;
     private boolean showSummary;
     private boolean showCorrespondances;
     private AnalysisResultDisplay resultDisplay;
+
+    private ResultsTable resultsTable;
+    private ResultsTable pixelObjectResultsTable;
+    private ResultsTable objectCorrespondanceTable;
 
 
     //    CONSTRUCTOR
@@ -495,9 +496,7 @@ public class Mask_Instant_Comparator implements PlugIn {
         if(pixelMethod){
             //Metrics metrics = analysis.getPixelMetrics();
             Metrics metrics = result.getPixelMetrics();
-            addToResultTable(resultsTable,"Pixel",metrics.getTP(),metrics.getFP(),metrics.getFN(),metrics.getPrecision(),
-                    metrics.getSensitivity(),metrics.getJaccardIndex(),metrics.getF1measure(),-1
-            );
+            resultDisplay.addMetric("Pixel", metrics);
         }
         if(objectMethod){
             //Metrics metrics = analysis.getMetrics(0.5);
@@ -508,21 +507,9 @@ public class Mask_Instant_Comparator implements PlugIn {
         if(pixelObjectMethod) {
             Metrics[] curveMetrics = result.getCurveMetrics();
             double[] thresholds = result.getThresholds();
-            int nbIndexes = curveMetrics.length;
+
             resultsTable.addValue("mAP = 1/NIoU * sum(TP(IoU)/(TP(IoU)+FP(IoU)+FN(IoU)))", result.getMeanJaccard());
             resultsTable.addValue("mAP = 1/NIoU * sum(TP(IoU)/(TP(IoU)+FP(IoU)))", result.getMeanPrecision());
-
-           /* if(tps == null) tps = new double[nbIndexes];
-            if(fps == null) fps = new double[nbIndexes];
-            if(fns == null) fns = new double[nbIndexes];
-            if(this.thresholds == null) this.thresholds = thresholds;
-
-            for(int i = 0; i < nbIndexes; i++){
-                Metrics m = curveMetrics[i];
-                tps[i] += m.getTP();
-                fps[i] += m.getFP();
-                fns[i] += m.getFN();
-            }*/
             resultDisplay.accumulate(result);
 
             if(showGraphs) resultDisplay.addPlot(result, truthMaskIP.getShortTitle() + "/" + testMaskIP.getShortTitle());
@@ -601,7 +588,7 @@ public class Mask_Instant_Comparator implements PlugIn {
 
                 double[] thresholds = buildThresholds(overlapMin, overlapMax, overlapInc);
                 Metrics[] curveMetrics = computeROIMetricsCurve(truthRois, testRois, objectAssignation, validTruth, validTest, overlapPercents, thresholds);
-                int nbIndexes = thresholds.length;
+
                 AnalysisResult result = new AnalysisResult();
                 result.setCurveMetrics(curveMetrics);
                 result.setThresholds(thresholds);
@@ -940,47 +927,6 @@ public class Mask_Instant_Comparator implements PlugIn {
     }
 
 
-    /**
-     * Calculate the stats and add it all to the result table
-     *
-     * @param method : Object, Pixel or Object-Pixel
-     * @param tp     : True Positives
-     * @param fp     : False Positives
-     * @param fn     : False Negatives
-     */
-    private void addToResultTable(String method, double tp, double fp, double fn) {
-//        STATISTICS
-        double precision = tp / (tp + fp);
-        double recall = tp / (tp + fn);
-        double jaccardIndex = tp / (tp + fn + fp);
-        double fMeasure = 2 * precision * recall / (precision + recall);
-
-//        ADD TO RESULT TABLE
-        addToResultTable(resultsTable, method, tp, fp, fn, precision, recall, jaccardIndex, fMeasure, -1);
-
-    }
-
-    /**
-     * Calculate the stats and add it all to the result table
-     *
-     * @param method : Object, Pixel or Object-Pixel
-     * @param tp     : True Positives
-     * @param fp     : False Positives
-     * @param fn     : False Negatives
-     */
-    private void addToResultTable(ResultsTable resultsTable, String method, double tp, double fp, double fn, double precision, double sensitivity, double jaccardIndex, double fmeasure, double threshold) {
-
-//        ADD TO RESULT TABLE
-        if (threshold >= 0) resultsTable.addValue(method + " IoU threshold", threshold);
-        resultsTable.addValue(method + " TP", tp);
-        resultsTable.addValue(method + " FP", fp);
-        resultsTable.addValue(method + " FN", fn);
-        resultsTable.addValue(method + " Precision", precision);/*(TP/Positives)*/
-        resultsTable.addValue(method + " Recall/Sensitivity", sensitivity);/*(TP/Truth)*/
-        resultsTable.addValue(method + " Jaccard Index", jaccardIndex);/*(TP/(TP+FN+FP))*/
-        resultsTable.addValue(method + " F-measure", fmeasure);/*(2*Precision/(precision+recall))*/
-
-    }
 
 
     /**
@@ -1236,27 +1182,7 @@ public class Mask_Instant_Comparator implements PlugIn {
         boolean openImages;
         GenericDialog gd;
         //            SET RESULTS TABLE
-        ResultsTable rt = ResultsTable.getResultsTable("Mask comparison results");
-        ResultsTable rt2 = ResultsTable.getResultsTable("Mask comparison Object with IoU thresholds");
-        ResultsTable rt3 = ResultsTable.getResultsTable("Objects correspondences");
-        if (rt == null) {
-            resultsTable = new ResultsTable();
-        } else {
-            resultsTable = rt;
-            resultsTable.incrementCounter();
-        }
-        if (rt2 != null) {
-            pixelObjectResultsTable = rt2;
-            pixelObjectResultsTable.incrementCounter();
-        } else {
-            pixelObjectResultsTable = new ResultsTable();
-        }
-        if (rt3 != null) {
-            objectCorrespondanceTable = rt3;
-            objectCorrespondanceTable.incrementCounter();
-        } else {
-            objectCorrespondanceTable = new ResultsTable();
-        }
+
         allTruthRoi = new ArrayList<>();
 //        There are opened images : dialog to choose between local images or the opened ones
         boolean isOpenImage = (WindowManager.getImageCount() > 0);
@@ -1266,6 +1192,10 @@ public class Mask_Instant_Comparator implements PlugIn {
         if (!gd.wasCanceled()) {
             getChoicesFromGD(gd, isOpenImage);
             resultDisplay = new AnalysisResultDisplay(truthMaskIP, testMaskIP);
+            resultsTable = resultDisplay.getResultsTable();
+            pixelObjectResultsTable = resultDisplay.getThresholdResultsTable();
+            objectCorrespondanceTable = resultDisplay.getCorrespondenceTable();
+
             if (!analysis()) return;
 
 
@@ -1288,6 +1218,47 @@ public class Mask_Instant_Comparator implements PlugIn {
         }
     }
 
+    /**
+     * Calculate the stats and add it all to the result table
+     *
+     * @param method : Object, Pixel or Object-Pixel
+     * @param tp     : True Positives
+     * @param fp     : False Positives
+     * @param fn     : False Negatives
+     */
+    private void addToResultTable(String method, double tp, double fp, double fn) {
+//        STATISTICS
+        double precision = tp / (tp + fp);
+        double recall = tp / (tp + fn);
+        double jaccardIndex = tp / (tp + fn + fp);
+        double fMeasure = 2 * precision * recall / (precision + recall);
+
+//        ADD TO RESULT TABLE
+        addToResultTable(resultsTable, method, tp, fp, fn, precision, recall, jaccardIndex, fMeasure, -1);
+
+    }
+
+    /**
+     * Calculate the stats and add it all to the result table
+     *
+     * @param method : Object, Pixel or Object-Pixel
+     * @param tp     : True Positives
+     * @param fp     : False Positives
+     * @param fn     : False Negatives
+     */
+    private void addToResultTable(ResultsTable resultsTable, String method, double tp, double fp, double fn, double precision, double sensitivity, double jaccardIndex, double fmeasure, double threshold) {
+
+//        ADD TO RESULT TABLE
+        if (threshold >= 0) resultsTable.addValue(method + " IoU threshold", threshold);
+        resultsTable.addValue(method + " TP", tp);
+        resultsTable.addValue(method + " FP", fp);
+        resultsTable.addValue(method + " FN", fn);
+        resultsTable.addValue(method + " Precision", precision);/*(TP/Positives)*/
+        resultsTable.addValue(method + " Recall/Sensitivity", sensitivity);/*(TP/Truth)*/
+        resultsTable.addValue(method + " Jaccard Index", jaccardIndex);/*(TP/(TP+FN+FP))*/
+        resultsTable.addValue(method + " F-measure", fmeasure);/*(2*Precision/(precision+recall))*/
+
+    }
 
 }
 
