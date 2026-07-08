@@ -489,6 +489,9 @@ public class Mask_Instant_Comparator implements PlugIn {
 
         IoUAnalysis analysis = IoUAnalysis.create(truth, test, minSize, minDist);
         AnalysisResult result = analysis.computeAnalysisResult(overlapMin,overlapMax,overlapInc);
+        result.setChannel(channel);
+        result.setFrame(time);
+        result.setSlice(nrSlice);
 
         resultsTable.addValue("Truth objects", analysis.getMaxTruth());
         resultsTable.addValue("Test objects", analysis.getMaxTest());
@@ -550,8 +553,20 @@ public class Mask_Instant_Comparator implements PlugIn {
             }
 
             if(showGraphs){
-                createGraphs(truthMaskIP.getShortTitle()+"/"+testMaskIP.getShortTitle()+"("+nrSlice+") pixel/object graphs",
-                        thresholds,precision,sensitivity,jaccardIndex,fmeasure);
+                Plot plot = result.createPlot(
+                        truthMaskIP.getShortTitle()+"/"+
+                                testMaskIP.getShortTitle()+"("+nrSlice+") pixel/object graphs"
+                );
+
+                if(plotStack == null){
+                    plotStack = new PlotVirtualStack(
+                            plot.getProcessor().getWidth(),
+                            plot.getProcessor().getHeight()
+                    );
+                }
+
+                plotStack.addPlot(plot);
+
             }
 
             for(int i = 0; i < thresholds.length; i++){
