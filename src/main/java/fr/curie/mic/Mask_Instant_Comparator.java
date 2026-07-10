@@ -83,6 +83,7 @@ public class Mask_Instant_Comparator implements PlugIn {
     private boolean showSummary;
     private boolean showCorrespondances;
     private AnalysisResultDisplay resultDisplay;
+    private LUT lutComposite;
 
 
 
@@ -662,6 +663,8 @@ public class Mask_Instant_Comparator implements PlugIn {
 
     private void createCompositeStack() {
         IJ.log("create composite");
+        lutComposite = IoUAnalysis.getMiCLUT();
+
         int nbIndexes = ((pixelObjectMethod) ? (int) Math.round((overlapMax - overlapMin) / overlapInc + 1) : 0);
         IJ.log("nbIndexes:" + nbIndexes);
         nbIndexes += ((pixelMethod) ? 1 : 0);
@@ -801,7 +804,7 @@ public class Mask_Instant_Comparator implements PlugIn {
         //rgb.show();
         imp.getImageStack().getProcessor(imp.getStackIndex(index, slice, time+1)).copyBits(rgb.getProcessor(), 0, 0, Blitter.COPY);
         CompositeImage ci = (CompositeImage) imp;
-        ci.setChannelLut(rgb.getProcessor().getLut(), index);
+        ci.setChannelLut(lutComposite, index);
         //imp.getImageStack().getProcessor(imp.getStackIndex(index,slice,time)).copyBits(col,0,0,Blitter.COPY);
     }
 
@@ -820,7 +823,7 @@ public class Mask_Instant_Comparator implements PlugIn {
         imp.getImageStack().getProcessor(stackIndex).copyBits(processorToCopy, 0, 0, Blitter.COPY);
         IJ.log("label composite target max channel " + index + " = " + imp.getImageStack().getProcessor(stackIndex).getMax());
         CompositeImage ci = (CompositeImage) imp;
-        if(processorToCopy.getLut() != null) ci.setChannelLut(processorToCopy.getLut(), index);
+        ci.setChannelLut(lutComposite, index);
         imp.setPosition(index, slice, time + 1);
         imp.resetDisplayRange();
         imp.updateAndDraw();
