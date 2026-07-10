@@ -84,6 +84,29 @@ public class Mask_Instant_Comparator implements PlugIn {
     private boolean showCorrespondances;
     private AnalysisResultDisplay resultDisplay;
     private LUT lutComposite;
+    private static final int OUT_BACKGROUND = 0;
+    private static final int OUT_TP_OVERLAP = 1;
+    private static final int OUT_TEST_TP_ONLY = 2;
+    private static final int OUT_TRUTH_TP_ONLY = 3;
+    private static final int OUT_FN_FUSION = 4;
+    private static final int OUT_FP_SPLIT = 5;
+    private static final int OUT_LOW_IOU_OVERLAP = 6;
+    private static final int OUT_LOW_IOU_ONLY = 7;
+    private static final int OUT_FP_NOT_FOUND = 8;
+    private static final int OUT_FN_NOT_FOUND = 9;
+    private static final int OUT_INVALID = 10;
+
+    private static final int TRUTH_TP = 101;
+    private static final int TRUTH_LOW_IOU = 102;
+    private static final int TRUTH_FN_FUSION = 103;
+    private static final int TRUTH_FN_NOT_FOUND = 104;
+    private static final int TRUTH_INVALID = 105;
+
+    private static final int TEST_TP = 201;
+    private static final int TEST_LOW_IOU = 202;
+    private static final int TEST_FP_SPLIT = 203;
+    private static final int TEST_FP_NOT_FOUND = 204;
+    private static final int TEST_INVALID = 205;
 
 
 
@@ -446,6 +469,22 @@ public class Mask_Instant_Comparator implements PlugIn {
         }
         imp.updateAndRepaintWindow();
     }
+    private void fillRoi(ByteProcessor ip, Roi roi, int value){
+        ip.setValue(value);
+        ip.fill(roi);
+    }
+    private boolean truthOverlapsAcceptedTest(Roi truthRoi, Roi[] testRois, boolean[] acceptedTest){
+        for(int j = 0; j < testRois.length; j++){
+            if(acceptedTest[j] && compare2Rois(truthRoi, testRois[j]) > 0) return true;
+        }
+        return false;
+    }
+    private boolean testOverlapsAcceptedTruth(Roi testRoi, Roi[] truthRois, boolean[] acceptedTruth){
+        for(int i = 0; i < truthRois.length; i++){
+            if(acceptedTruth[i] && compare2Rois(truthRois[i], testRoi) > 0) return true;
+        }
+        return false;
+    }
 
 
     /**
@@ -535,6 +574,8 @@ public class Mask_Instant_Comparator implements PlugIn {
         truthMaskProc = labeledImage(truthMaskProc.getWidth(), truthMaskProc.getHeight(), truthRois);
         testMaskProc = labeledImage(testMaskProc.getWidth(), testMaskProc.getHeight(), testRois);
 
+        IoUAnalysis roiAnalysis = IoUAnalysis.create(truthRois, testRois, truthMaskProc.getWidth(), truthMaskProc.getHeight(), minDist);
+
         allTruthRoi.add(truthRois);
 //            LAUNCH METHODS
         int indexComposite = 1;
@@ -548,26 +589,30 @@ public class Mask_Instant_Comparator implements PlugIn {
             int[] objectAssignation = new int[truthRois.length];
             double[] overlapPercents = new double[truthRois.length];
             objectAssignation(truthRois, testRois, objectAssignation, overlapPercents);
-            boolean[] validTruth = new boolean[truthRois.length];
-            boolean[] validTest = new boolean[testRois.length];
-            validateRoisToBorder(truthRois, validTruth, minDist, truthMaskProc.getWidth(), truthMaskProc.getHeight());
-            validateRoisToBorder(testRois, validTest, minDist, truthMaskProc.getWidth(), truthMaskProc.getHeight());
+            //boolean[] validTruth = new boolean[truthRois.length];
+            //boolean[] validTest = new boolean[testRois.length];
+            //validateRoisToBorder(truthRois, validTruth, minDist, truthMaskProc.getWidth(), truthMaskProc.getHeight());
+            //validateRoisToBorder(testRois, validTest, minDist, truthMaskProc.getWidth(), truthMaskProc.getHeight());
+            boolean[] validTruth = getValidTruthFromIoU(roiAnalysis);
+            boolean[] validTest = getValidTestFromIoU(roiAnalysis);
+
             if (showCorrespondances) {
                 resultDisplay.addCorrespondence(truthMaskIP.getTitle(), channel, time, nrSlice, truthRois,
                         objectAssignation, overlapPercents, validTruth, truthMaskIP.getWidth(), truthMaskIP.getHeight());
             }
             if (objectMethod) {
-                Metrics objectMetrics = computeROIMetricsAtThreshold(truthRois, testRois, objectAssignation, validTruth, validTest, overlapPercents, 0.5);
+                Metrics objectMetrics = computeROIMetricsFromIoU(roiAnalysis, 0.5);
+                //Metrics objectMetrics = roiAnalysis.getMetrics(0.5);
+                //Metrics objectMetrics = computeROIMetricsAtThreshold(truthRois, testRois, objectAssignation, validTruth, validTest, overlapPercents, 0.5);
                 indexComposite++;
-                if(compositeImage != null) addCompositeObjects(compositeImage[channel], indexComposite, channel, time, nrSlice, truthRois, testRois, objectAssignation, validTruth, validTest, overlapPercents, 0.5);
+                if(compositeImage != null) addCompositeLabelObjects(compositeImage[channel], indexComposite, channel, time, nrSlice, roiAnalysis, truthMaskProc, testMaskProc, 0.5);
                 resultDisplay.addMetric("Object (IoU=0.5)", objectMetrics);
 
             }
             if (pixelObjectMethod) {
-
                 double[] thresholds = buildThresholds(overlapMin, overlapMax, overlapInc);
-                Metrics[] curveMetrics = computeROIMetricsCurve(truthRois, testRois, objectAssignation, validTruth, validTest, overlapPercents, thresholds);
-
+                Metrics[] curveMetrics = computeROIMetricsCurveFromIoU(roiAnalysis, thresholds);
+                //Metrics[] curveMetrics = computeROIMetricsCurve(truthRois, testRois, objectAssignation, validTruth, validTest, overlapPercents, thresholds);
                 AnalysisResult result = AnalysisResult.fromCurveMetrics(curveMetrics, thresholds, channel, time, nrSlice);
                 resultDisplay.addMeanScores(result);
                 resultDisplay.accumulate(result);
@@ -575,7 +620,7 @@ public class Mask_Instant_Comparator implements PlugIn {
                 if (compositeImage != null) {
                     for (double range : thresholds) {
                         indexComposite++;
-                        addCompositeObjects(compositeImage[channel], indexComposite, channel, time, nrSlice, truthRois, testRois, objectAssignation, validTruth, validTest, overlapPercents, range);
+                        addCompositeLabelObjects(compositeImage[channel], indexComposite, channel, time, nrSlice, roiAnalysis, truthMaskProc, testMaskProc, range);
                     }
                 }
                 //create graphs
@@ -699,26 +744,32 @@ public class Mask_Instant_Comparator implements PlugIn {
     }
 
     private Metrics computeROIMetricsAtThreshold(Roi[] truthRois, Roi[] testRois, int[] correspondence, boolean[] validTruth, boolean[] validTest, double[] overlapPercent, double threshold){
+        boolean[] acceptedTruth = new boolean[truthRois.length];
+        boolean[] acceptedTest = new boolean[testRois.length];
         int tp = 0;
-        int validTru = 0;
-        int validTe = 0;
-        for(int i = 0; i < correspondence.length; i++){
-            if(validTruth[i]){
-                validTru++;
-                if(correspondence[i] >= 0){
-                    if(overlapPercent[i] >= threshold) tp++;
-                    validTe++;
-                }
+        for(int i = 0; i < truthRois.length; i++){
+            if(!validTruth[i]) continue;
+            int j = correspondence[i];
+            if(j >= 0 && j < testRois.length && validTest[j] && overlapPercent[i] >= threshold){
+                acceptedTruth[i] = true;
+                acceptedTest[j] = true;
+                tp++;
             }
         }
-        for(int i = 0; i < testRois.length; i++){
-            if(validTest[i]){
-                int j = findIndexOf(correspondence, i);
-                if(j < 0) validTe++;
-            }
+        int fp = 0;
+        for(int j = 0; j < testRois.length; j++){
+            if(!validTest[j]) continue;
+            if(acceptedTest[j]) continue;
+            if(testOverlapsAcceptedTruth(testRois[j], truthRois, acceptedTruth)) continue;
+            fp++;
         }
-        int fp = validTe - tp;
-        int fn = validTru - tp;
+        int fn = 0;
+        for(int i = 0; i < truthRois.length; i++){
+            if(!validTruth[i]) continue;
+            if(acceptedTruth[i]) continue;
+            if(truthOverlapsAcceptedTest(truthRois[i], testRois, acceptedTest)) continue;
+            fn++;
+        }
         return new Metrics(tp, fp, fn);
     }
     private Metrics[] computeROIMetricsCurve(Roi[] truthRois, Roi[] testRois, int[] correspondence, boolean[] validTruth, boolean[] validTest, double[] overlapPercent, double[] thresholds){
@@ -727,6 +778,72 @@ public class Mask_Instant_Comparator implements PlugIn {
             metrics[i] = computeROIMetricsAtThreshold(truthRois, testRois, correspondence, validTruth, validTest, overlapPercent, thresholds[i]);
         }
         return metrics;
+    }
+
+    private Metrics computeROIMetricsFromIoU(IoUAnalysis analysis, double threshold){
+        ImageProcessor iou = analysis.getIoU();
+        int nTruth = analysis.getMaxTruth();
+        int nTest = analysis.getMaxTest();
+        boolean[] validTruth = new boolean[nTruth];
+        boolean[] validTest = new boolean[nTest];
+        for(int i = 0; i < nTruth; i++) validTruth[i] = iou.getf(i + 1, 0) >= 0;
+        for(int j = 0; j < nTest; j++) validTest[j] = iou.getf(0, j + 1) >= 0;
+        ArrayList<RoiMatch> matches = new ArrayList<>();
+        for(int i = 0; i < nTruth; i++){
+            if(!validTruth[i]) continue;
+            for(int j = 0; j < nTest; j++){
+                if(!validTest[j]) continue;
+                double value = iou.getf(i + 1, j + 1);
+                if(value >= threshold) matches.add(new RoiMatch(i, j, value));
+            }
+        }
+        matches.sort((a, b) -> Double.compare(b.iou, a.iou));
+        boolean[] acceptedTruth = new boolean[nTruth];
+        boolean[] acceptedTest = new boolean[nTest];
+        int tp = 0;
+        for(RoiMatch match : matches){
+            if(acceptedTruth[match.truth] || acceptedTest[match.test]) continue;
+            acceptedTruth[match.truth] = true;
+            acceptedTest[match.test] = true;
+            tp++;
+        }
+        int fp = 0;
+        for(int j = 0; j < nTest; j++){
+            if(validTest[j] && !acceptedTest[j]) fp++;
+        }
+        int fn = 0;
+        for(int i = 0; i < nTruth; i++){
+            if(validTruth[i] && !acceptedTruth[i]) fn++;
+        }
+
+        IJ.log("ROI metrics from IoU threshold=" + threshold + " TP=" + tp + " FP=" + fp + " FN=" + fn + " validTruth=" + countTrue(validTruth) + " validTest=" + countTrue(validTest));
+        return new Metrics(tp, fp, fn);
+    }
+    private int countTrue(boolean[] values){
+        int count = 0;
+        for(boolean value : values){
+            if(value) count++;
+        }
+        return count;
+    }
+
+    private Metrics[] computeROIMetricsCurveFromIoU(IoUAnalysis analysis, double[] thresholds){
+        Metrics[] metrics = new Metrics[thresholds.length];
+        for(int i = 0; i < thresholds.length; i++){
+            metrics[i] = computeROIMetricsFromIoU(analysis, thresholds[i]);
+        }
+        return metrics;
+    }
+
+    private static class RoiMatch {
+        int truth;
+        int test;
+        double iou;
+        RoiMatch(int truth, int test, double iou){
+            this.truth = truth;
+            this.test = test;
+            this.iou = iou;
+        }
     }
 
 
@@ -827,6 +944,83 @@ public class Mask_Instant_Comparator implements PlugIn {
         imp.setPosition(index, slice, time + 1);
         imp.resetDisplayRange();
         imp.updateAndDraw();
+    }
+
+    private void addCompositeObjectsIndexed(ImagePlus imp, int index, int channel, int time, int slice, Roi[] truthRois, Roi[] testRois, int[] correspondence, boolean[] validTruth, boolean[] validTest, double[] overlapPercent, double threshold){
+        IJ.log("add indexed ROI composite with explicit overlap coding, threshold " + threshold + " at display channel " + index);
+        int width = imp.getWidth();
+        int height = imp.getHeight();
+        ByteProcessor truthLayer = new ByteProcessor(width, height);
+        ByteProcessor testLayer = new ByteProcessor(width, height);
+        ByteProcessor out = new ByteProcessor(width, height);
+        boolean[] acceptedTruth = new boolean[truthRois.length];
+        boolean[] acceptedTest = new boolean[testRois.length];
+        for(int i = 0; i < truthRois.length; i++){
+            int j = correspondence[i];
+            if(validTruth[i] && j >= 0 && j < testRois.length && validTest[j] && overlapPercent[i] >= threshold){
+                acceptedTruth[i] = true;
+                acceptedTest[j] = true;
+            }
+        }
+        for(int i = 0; i < truthRois.length; i++){
+            int j = correspondence[i];
+            if(!validTruth[i]){
+                fillRoi(truthLayer, truthRois[i], TRUTH_INVALID);
+            }else if(acceptedTruth[i]){
+                fillRoi(truthLayer, truthRois[i], TRUTH_TP);
+            }else if(j >= 0 && j < testRois.length && validTest[j] && overlapPercent[i] > 0 && overlapPercent[i] < threshold){
+                fillRoi(truthLayer, truthRois[i], TRUTH_LOW_IOU);
+            }else if(truthOverlapsAcceptedTest(truthRois[i], testRois, acceptedTest)){
+                fillRoi(truthLayer, truthRois[i], TRUTH_FN_FUSION);
+            }else{
+                fillRoi(truthLayer, truthRois[i], TRUTH_FN_NOT_FOUND);
+            }
+        }
+        for(int j = 0; j < testRois.length; j++){
+            int i = findIndexOf(correspondence, j);
+            if(!validTest[j]){
+                fillRoi(testLayer, testRois[j], TEST_INVALID);
+            }else if(acceptedTest[j]){
+                fillRoi(testLayer, testRois[j], TEST_TP);
+            }else if(i >= 0 && i < truthRois.length && validTruth[i] && overlapPercent[i] > 0 && overlapPercent[i] < threshold){
+                fillRoi(testLayer, testRois[j], TEST_LOW_IOU);
+            }else if(testOverlapsAcceptedTruth(testRois[j], truthRois, acceptedTruth)){
+                fillRoi(testLayer, testRois[j], TEST_FP_SPLIT);
+            }else{
+                fillRoi(testLayer, testRois[j], TEST_FP_NOT_FOUND);
+            }
+        }
+        for(int y = 0; y < height; y++){
+            for(int x = 0; x < width; x++){
+                int tv = truthLayer.get(x, y);
+                int sv = testLayer.get(x, y);
+                out.set(x, y, compositeCode(tv, sv));
+            }
+        }
+        int stackIndex = imp.getStackIndex(index, slice, time + 1);
+        imp.getImageStack().getProcessor(stackIndex).copyBits(out, 0, 0, Blitter.COPY);
+        CompositeImage ci = (CompositeImage) imp;
+        ci.setChannelLut(lutComposite, index);
+        imp.setPosition(index, slice, time + 1);
+        imp.getProcessor().resetMinAndMax();
+        imp.resetDisplayRange();
+        imp.updateAndDraw();
+        IJ.log("indexed ROI composite target max channel " + index + " = " + imp.getImageStack().getProcessor(stackIndex).getMax());
+    }
+
+    private int compositeCode(int truthValue, int testValue){
+        if(truthValue == 0 && testValue == 0) return OUT_BACKGROUND;
+        if(truthValue == TRUTH_INVALID || testValue == TEST_INVALID) return OUT_INVALID;
+        if(truthValue == TRUTH_TP && testValue == TEST_TP) return OUT_TP_OVERLAP;
+        if(truthValue == TRUTH_TP && testValue == 0) return OUT_TRUTH_TP_ONLY;
+        if(truthValue == 0 && testValue == TEST_TP) return OUT_TEST_TP_ONLY;
+        if(truthValue == TRUTH_LOW_IOU && testValue == TEST_LOW_IOU) return OUT_LOW_IOU_OVERLAP;
+        if(truthValue == TRUTH_LOW_IOU || testValue == TEST_LOW_IOU) return OUT_LOW_IOU_ONLY;
+        if(truthValue == TRUTH_FN_FUSION) return OUT_FN_FUSION;
+        if(testValue == TEST_FP_SPLIT) return OUT_FP_SPLIT;
+        if(truthValue == TRUTH_FN_NOT_FOUND) return OUT_FN_NOT_FOUND;
+        if(testValue == TEST_FP_NOT_FOUND) return OUT_FP_NOT_FOUND;
+        return OUT_BACKGROUND;
     }
 
     private int findIndexOf(int[] array, int value) {
@@ -1134,6 +1328,18 @@ public class Mask_Instant_Comparator implements PlugIn {
             if(resultDisplay != null) resultDisplay.showPlots();
             if(useROICalculation())setRoisInRoiManager(allTruthRoi);
         }
+    }
+    private boolean[] getValidTruthFromIoU(IoUAnalysis analysis){
+        boolean[] valid = new boolean[analysis.getMaxTruth()];
+        ImageProcessor iou = analysis.getIoU();
+        for(int i = 0; i < valid.length; i++) valid[i] = iou.getf(i + 1, 0) >= 0;
+        return valid;
+    }
+    private boolean[] getValidTestFromIoU(IoUAnalysis analysis){
+        boolean[] valid = new boolean[analysis.getMaxTest()];
+        ImageProcessor iou = analysis.getIoU();
+        for(int i = 0; i < valid.length; i++) valid[i] = iou.getf(0, i + 1) >= 0;
+        return valid;
     }
 
 }

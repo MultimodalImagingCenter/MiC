@@ -3,10 +3,10 @@ package fr.curie.mic;
 import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
-import ij.process.ByteProcessor;
-import ij.process.ImageProcessor;
-import ij.process.LUT;
+import ij.gui.Roi;
+import ij.process.*;
 
+import java.awt.*;
 import java.util.*;
 
 public class IoUAnalysis {
@@ -21,9 +21,10 @@ public class IoUAnalysis {
     protected static final int FP_COLOR_INDEX = 8;
     protected static final int FN_COLOR_INDEX = 9;
     protected static final int NOT_ANALYZED_COLOR_INDEX = 10;
+    protected static final int SECONDARY_OVERLAP_COLOR_INDEX = 11;
     private final ImagePlus truth;
     private final ImagePlus test;
-    private final ImageProcessor iou;
+    private ImageProcessor iou;
     private final int maxTruth;
     private final int maxTest;
     private final HashMap<Double, ImageProcessor> colorCodeCache = new HashMap<>();
@@ -52,6 +53,22 @@ public class IoUAnalysis {
         IoUAnalysis result = new IoUAnalysis(truth, test, histo2D, iou, maxTruth, maxTest);
         result.checkPositionAndSize(iou, histoTruth, histoTest, minSize, minDist, truth, test);
         //IJ.log("IoUAnalysis.create : "+(System.currentTimeMillis()-start)+" ms");
+        return result;
+    }
+
+    public static IoUAnalysis create(Roi[] truthRois, Roi[] testRois, int width, int height, double minDist){
+        ImageProcessor truthLabels = labeledImageFromRois(width, height, truthRois);
+        ImageProcessor testLabels = labeledImageFromRois(width, height, testRois);
+        ImagePlus truth = new ImagePlus("truth_rois_labels", truthLabels);
+        ImagePlus test = new ImagePlus("test_rois_labels", testLabels);
+        int maxTruth = MicUtils.correctObjectNumbering(truth);
+        int maxTest = MicUtils.correctObjectNumbering(test);
+        ImageProcessor histo2D = MicUtils.histo2D(truth, maxTruth, test, maxTest);
+        int[] histoTruth = MicUtils.histo1D(truth, maxTruth);
+        int[] histoTest = MicUtils.histo1D(test, maxTest);
+        ImageProcessor iou = buildIoUImageFromRois(truthRois, testRois);
+        IoUAnalysis result = new IoUAnalysis(truth, test, histo2D, iou, maxTruth, maxTest);
+        result.checkPositionAndSize(iou, histoTruth, histoTest, 0, minDist, truth, test);
         return result;
     }
 
@@ -125,6 +142,12 @@ public class IoUAnalysis {
         r[10] = (byte) 128;
         g[10] = (byte) 128;
         b[10] = (byte) 128;
+        // Secondary overlap between already accepted objects (white)
+        r[11] = (byte) 255;
+        g[11] = (byte) 255;
+        b[11] = (byte) 255;
+
+
 
         return new LUT(r, g, b);
     }
@@ -133,16 +156,50 @@ public class IoUAnalysis {
         return iou;
     }
 
+
     public ImageProcessor getHisto2D() {
         return histo2D;
     }
 
-    public Metrics getMetrics(double threshold) {
-        return new Metrics(
-                iou,
-                threshold,
-                null
-        );
+    public Metrics getMetrics(double threshold){
+        return getMatchingMetrics(threshold);
+    }
+
+    private Metrics getMatchingMetrics(double threshold){
+        int nTruth = maxTruth;
+        int nTest = maxTest;
+        boolean[] validTruth = new boolean[nTruth];
+        boolean[] validTest = new boolean[nTest];
+        for(int i = 0; i < nTruth; i++) validTruth[i] = iou.getf(i + 1, 0) >= 0;
+        for(int j = 0; j < nTest; j++) validTest[j] = iou.getf(0, j + 1) >= 0;
+        ArrayList<ObjectMatch> matches = new ArrayList<>();
+        for(int i = 0; i < nTruth; i++){
+            if(!validTruth[i]) continue;
+            for(int j = 0; j < nTest; j++){
+                if(!validTest[j]) continue;
+                double value = iou.getf(i + 1, j + 1);
+                if(value >= threshold) matches.add(new ObjectMatch(i, j, value));
+            }
+        }
+        matches.sort((a, b) -> Double.compare(b.iou, a.iou));
+        boolean[] acceptedTruth = new boolean[nTruth];
+        boolean[] acceptedTest = new boolean[nTest];
+        int tp = 0;
+        for(ObjectMatch match : matches){
+            if(acceptedTruth[match.truth] || acceptedTest[match.test]) continue;
+            acceptedTruth[match.truth] = true;
+            acceptedTest[match.test] = true;
+            tp++;
+        }
+        int fp = 0;
+        for(int j = 0; j < nTest; j++){
+            if(validTest[j] && !acceptedTest[j]) fp++;
+        }
+        int fn = 0;
+        for(int i = 0; i < nTruth; i++){
+            if(validTruth[i] && !acceptedTruth[i]) fn++;
+        }
+        return new Metrics(tp, fp, fn);
     }
 
     public Metrics getPixelMetrics() {
@@ -201,16 +258,22 @@ public class IoUAnalysis {
         for (int y = 1; y < this.iou.getHeight(); y++) {
             for (int x = 1; x < this.iou.getWidth(); x++) {
                 double val = this.iou.getf(x, y);
-                if (val == -1) {
+                if(val == -1){
                     bp.set(x, y, NOT_ANALYZED_COLOR_INDEX);
-                } else if (val >= threshold) {
+                }else if(val >= threshold){
                     bp.set(x, y, TP_COLOR_INDEX);
-                } else {
-                    if (colMax[x] > threshold) {
+                }else if(val > 0){
+                    boolean truthHasAcceptedTP = colMax[x] >= threshold;
+                    boolean testHasAcceptedTP = rowMax[y] >= threshold;
+                    if(truthHasAcceptedTP && testHasAcceptedTP){
+                        bp.set(x, y, SECONDARY_OVERLAP_COLOR_INDEX);
+                    }else if(truthHasAcceptedTP){
                         bp.set(x, y, SPLIT_COLOR_INDEX);
-                    } else if (rowMax[y] > threshold) {
+                    }else if(testHasAcceptedTP){
                         bp.set(x, y, FUSED_COLOR_INDEX);
-                    } else bp.set(x, y, UNDER_IOU_COLOR_INDEX);
+                    }else{
+                        bp.set(x, y, UNDER_IOU_COLOR_INDEX);
+                    }
                 }
             }
         }
@@ -403,6 +466,77 @@ public class IoUAnalysis {
         result.setCurveMetrics(curveMetrics);
 
         return result;
+    }
+
+    private static ImageProcessor labeledImageFromRois(int width, int height, Roi[] rois){
+        ImageProcessor ip = new ShortProcessor(width, height);
+        for(int i = 0; i < rois.length; i++){
+            ip.setColor(i + 1);
+            ip.fill(rois[i]);
+        }
+        return ip;
+    }
+
+    private static FloatProcessor buildIoUImageFromRois(Roi[] truthRois, Roi[] testRois){
+        FloatProcessor iou = new FloatProcessor(truthRois.length + 1, testRois.length + 1);
+        for(int truthIndex = 0; truthIndex < truthRois.length; truthIndex++){
+            for(int testIndex = 0; testIndex < testRois.length; testIndex++){
+                double value = compareRois(truthRois[truthIndex], testRois[testIndex]);
+                if(value > 0) iou.setf(truthIndex + 1, testIndex + 1, (float)value);
+            }
+        }
+        return iou;
+    }
+
+    private static double compareRois(Roi truthRoi, Roi testRoi){
+        Rectangle truthRect = truthRoi.getBounds();
+        Rectangle testRect = testRoi.getBounds();
+        if(!truthRect.intersects(testRect)) return 0;
+        Point[] truthPoints = truthRoi.getContainedPoints();
+        Point[] testPoints = testRoi.getContainedPoints();
+        double totalTruth = truthPoints.length;
+        double totalTest = testPoints.length;
+        double common = 0;
+        for(Point p : testPoints){
+            if(truthRoi.containsPoint(p.getX(), p.getY())) common++;
+        }
+        if(common == 0) return 0;
+        return common / (totalTruth + totalTest - common);
+    }
+
+    private ImageProcessor getIoUForMetrics(double threshold){
+        ImageProcessor filtered = iou.duplicate();
+        float[] rowMax = new float[iou.getHeight()];
+        float[] colMax = new float[iou.getWidth()];
+        for(int y = 1; y < iou.getHeight(); y++){
+            float max = Float.NEGATIVE_INFINITY;
+            for(int x = 1; x < iou.getWidth(); x++) max = Math.max(max, iou.getf(x, y));
+            rowMax[y] = max;
+        }
+        for(int x = 1; x < iou.getWidth(); x++){
+            float max = Float.NEGATIVE_INFINITY;
+            for(int y = 1; y < iou.getHeight(); y++) max = Math.max(max, iou.getf(x, y));
+            colMax[x] = max;
+        }
+        for(int y = 1; y < iou.getHeight(); y++){
+            for(int x = 1; x < iou.getWidth(); x++){
+                float val = iou.getf(x, y);
+                boolean secondaryOverlap = val > 0 && val < threshold && colMax[x] >= threshold && rowMax[y] >= threshold;
+                if(secondaryOverlap) filtered.setf(x, y, 0);
+            }
+        }
+        return filtered;
+    }
+
+    private static class ObjectMatch {
+        int truth;
+        int test;
+        double iou;
+        ObjectMatch(int truth, int test, double iou){
+            this.truth = truth;
+            this.test = test;
+            this.iou = iou;
+        }
     }
 
 }
