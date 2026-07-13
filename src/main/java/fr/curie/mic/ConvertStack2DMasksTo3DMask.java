@@ -33,11 +33,36 @@ import ij.plugin.filter.PlugInFilter;
 import ij.process.ImageProcessor;
 import ij.process.ShortProcessor;
 
+/**
+ * ImageJ plugin to convert a stack of 2D segmentation masks into a consistent 3D mask.
+ * <p>
+ * This plugin processes consecutive image slices to establish correspondence between objects
+ * using Intersection over Union (IoU) scoring. Objects with IoU scores above a user-defined
+ * threshold are considered the same object across slices and are assigned the same label.
+ * New objects are created for unmatched segments.
+ * </p>
+ * <p>
+ * Algorithm Overview:
+ * 1. For each consecutive pair of slices (z-1, z):
+ *    - Build a 2D histogram showing object co-occurrences
+ *    - Calculate IoU score for each object pair
+ *    - Match objects with IoU >= threshold
+ *    - Assign new labels to unmatched objects
+ * 2. Update the z-slice with corrected labels to maintain continuity
+ * </p>
+ */
 public class ConvertStack2DMasksTo3DMask implements PlugInFilter {
 
     ImagePlus myimp;
     double iou=0.5;
 
+    /**
+     * Sets up the plugin and retrieves the IoU threshold from user input.
+     *
+     * @param arg plugin argument (unused)
+     * @param imp the image stack to process
+     * @return DOES_ALL + STACK_REQUIRED to indicate this plugin works on any image type and requires a stack
+     */
     @Override
     public int setup(String arg, ImagePlus imp) {
         this.myimp=imp;
@@ -45,6 +70,11 @@ public class ConvertStack2DMasksTo3DMask implements PlugInFilter {
         return DOES_ALL+STACK_REQUIRED;
     }
 
+    /**
+     * Processes the image stack, correcting object numbering from z=2 onwards.
+     *
+     * @param ip the current slice's image processor (unused; stack is processed directly)
+     */
     @Override
     public void run(ImageProcessor ip) {
         MicUtils.correctObjectNumbering(myimp);
@@ -55,6 +85,22 @@ public class ConvertStack2DMasksTo3DMask implements PlugInFilter {
 
     }
 
+    /**
+     * Corrects object numbering between two consecutive slices using IoU-based matching.
+     * <p>
+     * Algorithm:
+     * 1. Build 2D histogram counting co-occurrences of objects from both slices
+     * 1. Calculate 1D histograms for normalization
+     * 3. Compute IoU matrix from the 2D histogram
+     * 4. For each object in slice 2: find best matching object in slice 1 with IoU >= threshold
+     * 5. Assign matched objects to same label, or create new labels for unmatched objects
+     * 6. Update slice 2 pixel values with corrected labels
+     * </p>
+     *
+     * @param ip1 the previous slice's image processor
+     * @param ip2 the current slice's image processor (will be modified)
+     * @param thresholdIoU the minimum IoU score to consider objects as corresponding
+     */
     public void correctNumber3D(ImageProcessor ip1, ImageProcessor ip2, double thresholdIoU){
         int max1 = (int)Math.round(ip1.getStats().max+1);
         int max2 = (int)Math.round(ip2.getStats().max+1);

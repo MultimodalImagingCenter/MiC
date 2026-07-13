@@ -9,8 +9,14 @@ import ij.process.*;
 import java.awt.*;
 import java.util.*;
 
+/**
+ * Performs IoU (Intersection over Union) analysis between truth and test labeled images.
+ * Generates color-coded visualizations based on object matching categories (TP, FP, FN, splits, fusions, etc.).
+ * Supports metrics computation and image overlay visualization.
+ */
 public class IoUAnalysis {
 
+    // Color indices for visualization categories
     protected static final int TP_COLOR_INDEX = 1;
     protected static final int TP_OVER_COLOR_INDEX = 2;
     protected static final int TP_UNDER_COLOR_INDEX = 3;
@@ -22,6 +28,7 @@ public class IoUAnalysis {
     protected static final int FN_COLOR_INDEX = 9;
     protected static final int NOT_ANALYZED_COLOR_INDEX = 10;
     protected static final int SECONDARY_OVERLAP_COLOR_INDEX = 11;
+    
     private final ImagePlus truth;
     private final ImagePlus test;
     private ImageProcessor iou;
@@ -31,6 +38,16 @@ public class IoUAnalysis {
     private final ImageProcessor histo2D;
 
 
+    /**
+     * Constructs an IoUAnalysis instance with precomputed IoU values and histograms.
+     * 
+     * @param truth labeled truth image
+     * @param test labeled test image
+     * @param histo2D 2D histogram of object overlaps (truth labels × test labels)
+     * @param iou IoU matrix where iou[i][j] = IoU between truth object i and test object j
+     * @param maxTruth maximum label value in truth image
+     * @param maxTest maximum label value in test image
+     */
     public IoUAnalysis(ImagePlus truth, ImagePlus test, ImageProcessor histo2D, ImageProcessor iou, int maxTruth, int maxTest) {
         this.truth = truth;
         this.test = test;
@@ -40,6 +57,16 @@ public class IoUAnalysis {
         this.maxTest = maxTest;
     }
 
+    /**
+     * Factory method to create an IoUAnalysis from labeled images with filtering options.
+     * Normalizes object labels, computes IoU matrix, and filters objects by size and distance to border.
+     * 
+     * @param truth labeled truth image (3D stack)
+     * @param test labeled test image (3D stack)
+     * @param minSize minimum object size in pixels; objects below this threshold are marked as not analyzed
+     * @param minDist minimum distance from image border in pixels; objects closer are marked as not analyzed
+     * @return IoUAnalysis instance ready for metrics computation and visualization
+     */
     public static IoUAnalysis create(ImagePlus truth, ImagePlus test, double minSize, double minDist) {
         //long start = System.currentTimeMillis();
         int maxTruth = MicUtils.correctObjectNumbering(truth);
@@ -56,6 +83,17 @@ public class IoUAnalysis {
         return result;
     }
 
+    /**
+     * Factory method to create an IoUAnalysis from Regions of Interest (ROIs).
+     * Converts ROIs to labeled images and computes IoU analysis with border filtering.
+     * 
+     * @param truthRois array of ground truth ROIs
+     * @param testRois array of test ROIs
+     * @param width image width
+     * @param height image height
+     * @param minDist minimum distance from image border in pixels
+     * @return IoUAnalysis instance based on ROI comparison
+     */
     public static IoUAnalysis create(Roi[] truthRois, Roi[] testRois, int width, int height, double minDist){
         ImageProcessor truthLabels = labeledImageFromRois(width, height, truthRois);
         ImageProcessor testLabels = labeledImageFromRois(width, height, testRois);
@@ -72,6 +110,15 @@ public class IoUAnalysis {
         return result;
     }
 
+    /**
+     * Combines truth and test labeled images into a single color-coded visualization.
+     * Each pixel is assigned a color based on the IoU relationship between the truth and test objects at that location.
+     * 
+     * @param truth labeled truth image
+     * @param test labeled test image
+     * @param colorcode IoU color code matrix where colorcode[truthLabel][testLabel] = color index
+     * @return ByteProcessor with color indices ready for LUT visualization
+     */
     public static ImageProcessor displayCombinationProcessor(ImageProcessor truth, ImageProcessor test, ImageProcessor colorcode) {
         ByteProcessor result = new ByteProcessor(
                 truth.getWidth(),
@@ -98,6 +145,25 @@ public class IoUAnalysis {
         return result;
     }
 
+    /**
+     * Builds the MiC-specific Look-Up Table (LUT) for visualization.
+     * Maps color indices to RGB values for different object relationship categories.
+     * 
+     * Color scheme:
+     * - TP (index 1): Yellow - correct detection
+     * - TP_OVER (index 2): Red - test object oversegments truth
+     * - TP_UNDER (index 3): Green - test object undersegments truth
+     * - FUSED (index 4): Orange - one test object matches multiple truth objects (fusion)
+     * - SPLIT (index 5): Cyan - one truth object matches multiple test objects (split)
+     * - UNDER_IOU (index 6): Blue - partial overlap below threshold
+     * - UNDER_IOU_EXT (index 7): Purple - extended partial overlap region
+     * - FP (index 8): Dark red - false positive (test object without truth match)
+     * - FN (index 9): Dark green - false negative (truth object without test match)
+     * - NOT_ANALYZED (index 10): Grey - object filtered out (too small or near border)
+     * - SECONDARY_OVERLAP (index 11): White - partial overlap between two already matched objects
+     * 
+     * @return ImageJ LUT object for color mapping
+     */
     public static LUT getMiCLUT() {
         byte[] r = new byte[256];
         byte[] g = new byte[256];
@@ -152,26 +218,58 @@ public class IoUAnalysis {
         return new LUT(r, g, b);
     }
 
+    /**
+     * Returns the IoU matrix.
+     * 
+     * @return ImageProcessor containing IoU values; iou[i][j] = IoU between truth object i and test object j
+     */
     public ImageProcessor getIoU() {
         return iou;
     }
 
 
+    /**
+     * Returns the 2D histogram of object overlaps.
+     * 
+     * @return ImageProcessor containing pixel-level co-occurrence counts between truth and test objects
+     */
     public ImageProcessor getHisto2D() {
         return histo2D;
     }
 
+    /**
+     * Computes metrics (TP, FP, FN) using greedy best-match assignment.
+     * Each truth object is matched to at most one test object and vice versa.
+     * Matches are assigned greedily in order of descending IoU values above the threshold.
+     * 
+     * @param threshold minimum IoU value for a match to be considered (typically 0.5)
+     * @return Metrics object containing TP, FP, and FN counts
+     */
     public Metrics getMetrics(double threshold){
         return getMatchingMetrics(threshold);
     }
 
+    /**
+     * Computes object-level metrics using greedy matching strategy.
+     * 
+     * Algorithm:
+     * 1. Collect all IoU pairs above threshold
+     * 2. Sort pairs by descending IoU value
+     * 3. Greedily assign matches: each valid pair that hasn't used either object
+     * 4. Count TP (matched objects), FP (unmatched test), FN (unmatched truth)
+     * 
+     * @param threshold minimum IoU threshold for valid matches
+     * @return Metrics with TP, FP, FN counts
+     */
     private Metrics getMatchingMetrics(double threshold){
         int nTruth = maxTruth;
         int nTest = maxTest;
         boolean[] validTruth = new boolean[nTruth];
         boolean[] validTest = new boolean[nTest];
+        // Mark objects as valid if they weren't filtered out (IoU value >= 0)
         for(int i = 0; i < nTruth; i++) validTruth[i] = iou.getf(i + 1, 0) >= 0;
         for(int j = 0; j < nTest; j++) validTest[j] = iou.getf(0, j + 1) >= 0;
+        
         ArrayList<ObjectMatch> matches = new ArrayList<>();
         for(int i = 0; i < nTruth; i++){
             if(!validTruth[i]) continue;
@@ -181,7 +279,11 @@ public class IoUAnalysis {
                 if(value >= threshold) matches.add(new ObjectMatch(i, j, value));
             }
         }
+        
+        // Sort by IoU descending for greedy assignment
         matches.sort((a, b) -> Double.compare(b.iou, a.iou));
+        
+        // Greedy matching: assign highest IoU pairs first, prevent one-to-many
         boolean[] acceptedTruth = new boolean[nTruth];
         boolean[] acceptedTest = new boolean[nTest];
         int tp = 0;
@@ -191,6 +293,8 @@ public class IoUAnalysis {
             acceptedTest[match.test] = true;
             tp++;
         }
+        
+        // Count unmatched objects
         int fp = 0;
         for(int j = 0; j < nTest; j++){
             if(validTest[j] && !acceptedTest[j]) fp++;
@@ -202,6 +306,11 @@ public class IoUAnalysis {
         return new Metrics(tp, fp, fn);
     }
 
+    /**
+     * Computes pixel-level metrics from the 2D histogram.
+     * 
+     * @return Metrics object with pixel-level TP, FP, FN counts
+     */
     public Metrics getPixelMetrics() {
         return new Metrics(
                 histo2D,
@@ -210,22 +319,48 @@ public class IoUAnalysis {
         );
     }
 
+    /**
+     * Returns the truth labeled image.
+     * 
+     * @return ImagePlus containing ground truth object labels
+     */
     public ImagePlus getTruth() {
         return truth;
     }
 
+    /**
+     * Returns the test labeled image.
+     * 
+     * @return ImagePlus containing test segmentation object labels
+     */
     public ImagePlus getTest() {
         return test;
     }
 
+    /**
+     * Returns the maximum label value in the truth image.
+     * 
+     * @return maximum truth object label (number of truth objects)
+     */
     public int getMaxTruth() {
         return maxTruth;
     }
 
+    /**
+     * Returns the maximum label value in the test image.
+     * 
+     * @return maximum test object label (number of test objects)
+     */
     public int getMaxTest() {
         return maxTest;
     }
 
+    /**
+     * Retrieves color code matrix from cache or computes it if not cached.
+     * 
+     * @param threshold IoU threshold for color classification
+     * @return ByteProcessor with color indices for each (truth, test) object pair
+     */
     public ImageProcessor getColorCode(double threshold) {
         ImageProcessor cached = colorCodeCache.get(threshold);
         if (cached != null) return cached;
@@ -234,8 +369,28 @@ public class IoUAnalysis {
         return generated;
     }
 
+    /**
+     * Computes color-coded IoU matrix for visualization.
+     * 
+     * Algorithm:
+     * 1. Pre-compute row and column maxima to identify objects with accepted TPs
+     * 2. Classify each (truth, test) pair:
+     *    - TP: IoU >= threshold
+     *    - SECONDARY_OVERLAP: IoU > 0 AND both objects have accepted TPs
+     *    - SPLIT: IoU > 0 AND only truth has accepted TP
+     *    - FUSED: IoU > 0 AND only test has accepted TP
+     *    - UNDER_IOU: IoU > 0 AND neither has accepted TP
+     *    - NOT_ANALYZED: IoU = -1 (filtered out)
+     * 3. Classify edge cases (objects with no matches or only poor matches)
+     * 
+     * @param threshold minimum IoU for TP classification
+     * @return ByteProcessor with color indices ready for LUT visualization
+     */
     public ImageProcessor computeColorCode(double threshold) {
         ByteProcessor bp = new ByteProcessor(this.iou.getWidth(), this.iou.getHeight());
+        
+        // Pre-compute maximum IoU for each test object (row) and truth object (column)
+        // These identify which objects have at least one accepted TP match
         float[] rowMax = new float[this.iou.getHeight()];
         float[] colMax = new float[this.iou.getWidth()];
         for(int y=1;y<this.iou.getHeight();y++){
@@ -255,6 +410,8 @@ public class IoUAnalysis {
 
         float[] row = new float[this.iou.getWidth()];
         float[] col = new float[this.iou.getHeight()];
+        
+        // Classify interior cells: (truth, test) object pairs
         for (int y = 1; y < this.iou.getHeight(); y++) {
             for (int x = 1; x < this.iou.getWidth(); x++) {
                 double val = this.iou.getf(x, y);
@@ -263,6 +420,7 @@ public class IoUAnalysis {
                 }else if(val >= threshold){
                     bp.set(x, y, TP_COLOR_INDEX);
                 }else if(val > 0){
+                    // Partial overlap: determine type based on whether each object has accepted TP
                     boolean truthHasAcceptedTP = colMax[x] >= threshold;
                     boolean testHasAcceptedTP = rowMax[y] >= threshold;
                     if(truthHasAcceptedTP && testHasAcceptedTP){
@@ -277,6 +435,8 @@ public class IoUAnalysis {
                 }
             }
         }
+        
+        // Classify test objects (row 0): analyze each test object's matches
         for (int y = 1; y < this.iou.getHeight(); y++) {
             if (this.iou.getf(0, y) < 0) bp.set(0, y, NOT_ANALYZED_COLOR_INDEX);
             else {
@@ -287,12 +447,17 @@ public class IoUAnalysis {
                     if (row[x] > threshold) foundTP++;
                     else if (row[x] > 0 && row[x] < threshold) foundIoU++;
                 }
+                // TP_OVER: test object has accepted TP match(es)
                 if (foundTP > 0) bp.set(0, y, TP_OVER_COLOR_INDEX);
+                // UNDER_IOU_EXT: test object only has partial overlaps
                 else if (foundIoU > 0) bp.set(0, y, UNDER_IOU_EXT_COLOR_INDEX);
+                // FP: test object has no matches
                 else bp.set(0, y, FP_COLOR_INDEX);
             }
         }
         row = null;
+        
+        // Classify truth objects (column 0): analyze each truth object's matches
         for (int x = 1; x < this.iou.getWidth(); x++) {
             if (this.iou.getf(x, 0) < 0) bp.set(x, 0, NOT_ANALYZED_COLOR_INDEX);
             else {
@@ -303,8 +468,11 @@ public class IoUAnalysis {
                     if (col[y] > threshold) foundTP++;
                     else if (col[y] > 0 && col[y] < threshold) foundIoU++;
                 }
+                // TP_UNDER: truth object has accepted TP match(es)
                 if (foundTP > 0) bp.set(x, 0, TP_UNDER_COLOR_INDEX);
+                // UNDER_IOU_EXT: truth object only has partial overlaps
                 else if (foundIoU > 0) bp.set(x, 0, UNDER_IOU_EXT_COLOR_INDEX);
+                // FN: truth object has no matches
                 else bp.set(x, 0, FN_COLOR_INDEX);
             }
         }
@@ -312,12 +480,33 @@ public class IoUAnalysis {
         return bp;
     }
 
+    /**
+     * Creates a composite overlay image combining truth and test segmentations.
+     * Each pixel is colored according to the IoU relationship at that location.
+     * 
+     * @param truthPlane truth labeled image (single plane)
+     * @param testPlane test labeled image (single plane)
+     * @param threshold IoU threshold for visualization
+     * @return ByteProcessor with color-coded overlay
+     */
     public ImageProcessor createCompositePlane(ImageProcessor truthPlane, ImageProcessor testPlane, double threshold) {
         ImageProcessor colorcode = getColorCode(threshold);
 
         return displayCombinationProcessor(truthPlane, testPlane, colorcode);
     }
 
+    /**
+     * Filters objects by size and distance to image border.
+     * Objects that are too small or too close to borders are marked as not analyzed (IoU = -1).
+     * 
+     * @param iou IoU matrix to filter
+     * @param histoTruth pixel count histogram for truth objects
+     * @param histoTest pixel count histogram for test objects
+     * @param minSize minimum object size in pixels
+     * @param minDist minimum distance from border in pixels
+     * @param truth ground truth image stack
+     * @param test test segmentation image stack
+     */
     private void checkPositionAndSize(
             ImageProcessor iou,
             int[] histoTruth,
@@ -327,7 +516,7 @@ public class IoUAnalysis {
             ImagePlus truth,
             ImagePlus test
     ) {
-        // Check object size
+        // Mark undersized objects
         for (int y = 0; y < iou.getHeight(); y++) {
             for (int x = 0; x < iou.getWidth(); x++) {
                 boolean truthTooSmall = x >= 0 && x < histoTruth.length && histoTruth[x] < minSize;
@@ -339,7 +528,7 @@ public class IoUAnalysis {
             }
         }
 
-        // Check object distance to border
+        // Mark objects touching or near image borders
         if (minDist < 0) return;
 
         ArrayList<Integer> borderTruth = new ArrayList<>();
@@ -364,6 +553,14 @@ public class IoUAnalysis {
         removefromIoU(iou, borderTruth, borderTest);
     }
 
+    /**
+     * Identifies all object labels that touch or are close to image borders.
+     * Scans a border region of width/height minDist around image edges.
+     * 
+     * @param ip labeled image processor (single plane)
+     * @param minDist border distance threshold
+     * @return list of object labels within minDist pixels of any edge
+     */
     private ArrayList<Integer> objectBorder(ImageProcessor ip, double minDist) {
 
         ArrayList<Integer> border = new ArrayList<>();
@@ -373,6 +570,7 @@ public class IoUAnalysis {
         dist = Math.max(0, dist);
         dist = Math.min(dist, Math.min(ip.getWidth(), ip.getHeight()) - 1);
 
+        // Check top and bottom edges
         for (int x = 0; x < ip.getWidth(); x++) {
             for (int y = 0; y <= dist; y++) {
 
@@ -384,6 +582,7 @@ public class IoUAnalysis {
             }
         }
 
+        // Check left and right edges
         for (int y = 0; y < ip.getHeight(); y++) {
             for (int x = 0; x <= dist; x++) {
 
@@ -395,11 +594,20 @@ public class IoUAnalysis {
             }
         }
 
+        // Remove duplicates and return unique border object labels
         Set<Integer> set = new HashSet<>(border);
         return new ArrayList<>(set);
     }
 
+    /**
+     * Marks all IoU entries for border objects as not analyzed (-1).
+     * 
+     * @param iou IoU matrix to modify
+     * @param borderTruth list of truth object labels to remove
+     * @param borderTest list of test object labels to remove
+     */
     private void removefromIoU(ImageProcessor iou, ArrayList<Integer> borderTruth, ArrayList<Integer> borderTest) {
+        // Mark entire rows (test objects) as not analyzed
         for (Integer bt : borderTruth) {
 
             if (bt == null) continue;
@@ -421,6 +629,7 @@ public class IoUAnalysis {
             }
         }
 
+        // Mark entire columns (truth objects) as not analyzed
         for (Integer bt : borderTest) {
 
             if (bt == null) continue;
@@ -443,6 +652,15 @@ public class IoUAnalysis {
         }
     }
 
+    /**
+     * Computes analysis metrics across a range of IoU thresholds.
+     * Useful for generating precision-recall or F1 curves.
+     * 
+     * @param overlapMin minimum IoU threshold
+     * @param overlapMax maximum IoU threshold
+     * @param overlapInc threshold step size
+     * @return AnalysisResult with metrics computed at each threshold
+     */
     public AnalysisResult computeAnalysisResult(double overlapMin, double overlapMax, double overlapInc){
         AnalysisResult result = new AnalysisResult();
 
@@ -468,6 +686,15 @@ public class IoUAnalysis {
         return result;
     }
 
+    /**
+     * Creates a labeled image from an array of ROIs.
+     * Each ROI is filled with its index + 1 as the label.
+     * 
+     * @param width image width
+     * @param height image height
+     * @param rois array of ROIs to label
+     * @return ShortProcessor labeled image
+     */
     private static ImageProcessor labeledImageFromRois(int width, int height, Roi[] rois){
         ImageProcessor ip = new ShortProcessor(width, height);
         for(int i = 0; i < rois.length; i++){
@@ -477,6 +704,13 @@ public class IoUAnalysis {
         return ip;
     }
 
+    /**
+     * Computes IoU matrix directly from ROI objects.
+     * 
+     * @param truthRois array of ground truth ROIs
+     * @param testRois array of test ROIs
+     * @return FloatProcessor with IoU values; iou[i+1][j+1] = IoU between truthRois[i] and testRois[j]
+     */
     private static FloatProcessor buildIoUImageFromRois(Roi[] truthRois, Roi[] testRois){
         FloatProcessor iou = new FloatProcessor(truthRois.length + 1, testRois.length + 1);
         for(int truthIndex = 0; truthIndex < truthRois.length; truthIndex++){
@@ -488,6 +722,13 @@ public class IoUAnalysis {
         return iou;
     }
 
+    /**
+     * Computes IoU between two ROI objects using the formula: intersection / (truth + test - intersection).
+     * 
+     * @param truthRoi ground truth ROI
+     * @param testRoi test ROI
+     * @return IoU value [0, 1], or 0 if no intersection
+     */
     private static double compareRois(Roi truthRoi, Roi testRoi){
         Rectangle truthRect = truthRoi.getBounds();
         Rectangle testRect = testRoi.getBounds();
@@ -504,6 +745,13 @@ public class IoUAnalysis {
         return common / (totalTruth + totalTest - common);
     }
 
+    /**
+     * Filters IoU matrix by removing secondary overlaps (partial overlaps between matched objects).
+     * Used internally for metrics computation.
+     * 
+     * @param threshold IoU threshold to identify accepted matches
+     * @return duplicate of IoU matrix with secondary overlaps zeroed out
+     */
     private ImageProcessor getIoUForMetrics(double threshold){
         ImageProcessor filtered = iou.duplicate();
         float[] rowMax = new float[iou.getHeight()];
@@ -528,6 +776,9 @@ public class IoUAnalysis {
         return filtered;
     }
 
+    /**
+     * Represents a potential match between a truth and test object with associated IoU value.
+     */
     private static class ObjectMatch {
         int truth;
         int test;

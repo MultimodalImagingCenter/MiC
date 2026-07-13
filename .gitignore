@@ -34,3 +34,7 @@ hs_err_pid*
 *.releaseBackup
 *.iml
 /out/
+src/.idea/misc.xml
+src/.idea/modules.xml
+src/.idea/vcs.xml
+src/.idea/workspace.xml

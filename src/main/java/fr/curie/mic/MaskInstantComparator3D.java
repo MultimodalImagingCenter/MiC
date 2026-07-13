@@ -41,6 +41,22 @@ import java.io.File;
 import java.util.*;
 import ij.CompositeImage;
 
+/**
+ * ImageJ plugin for 3D segmentation mask comparison with multi-dimensional support.
+ * <p>
+ * This plugin compares truth and test segmentation masks across multiple dimensions
+ * (channels, frames, slices) and supports three comparison methods:
+ * <ul>
+ *   <li><b>Pixel Method:</b> Pixel-by-pixel comparison</li>
+ *   <li><b>Object Method:</b> Object-level matching using Intersection over Union</li>
+ *   <li><b>Pixel-Object Method:</b> Combined approach with configurable IoU thresholds</li>
+ * </ul>
+ * </p>
+ * <p>
+ * Generates detailed metrics (TP, FP, FN, precision, recall, Jaccard index) and
+ * creates composite visualizations and correspondence tables for each slice.
+ * </p>
+ */
 public class MaskInstantComparator3D implements PlugIn {
     //    Binary images to compare
     private ImagePlus truthMaskIP;
@@ -84,6 +100,12 @@ public class MaskInstantComparator3D implements PlugIn {
     private LUT lutcomposite;
     private double EPSILON = 1E-7;
 
+    /**
+     * Entry point for the plugin. Displays UI dialog to get parameters,
+     * initializes analysis, and displays results.
+     *
+     * @param arg plugin argument (unused)
+     */
     @Override
     public void run(String arg) {
         boolean useOpenImages=WindowManager.getImageCount() > 0;
@@ -122,6 +144,15 @@ public class MaskInstantComparator3D implements PlugIn {
         }
 
     }
+
+    /**
+     * Main analysis method that processes all channels and frames.
+     * Validates input images, then iterates through time points and channels,
+     * extracting 3D volumes and performing slice-by-slice comparisons.
+     * Accumulates results and generates composite images if requested.
+     *
+     * @return true if analysis completed successfully, false if validation failed
+     */
     public boolean analysis() {
         if (truthMaskIP == null || testMaskIP == null) {
             IJ.error("Truth or test image is null.");
@@ -166,6 +197,15 @@ public class MaskInstantComparator3D implements PlugIn {
         return ok;
     }
 
+    /**
+    * Performs 3D comparison for a single channel and time point.
+    * Calculates metrics using pixel, object, and/or pixel-object methods
+    * over all slices in the 3D volume.
+    *
+    * @param channel the channel index being analyzed
+    * @param frame the frame (time point) being analyzed
+    * @return true if analysis succeeded, false otherwise
+    */
     public boolean analysis3D(int channel, int frame){
         IoUAnalysis analysis = IoUAnalysis.create(truthMaskIP, testMaskIP,minSize, minDist);
         int maxTruth = analysis.getMaxTruth();
@@ -249,6 +289,15 @@ public class MaskInstantComparator3D implements PlugIn {
         }
         return true;
     }
+
+    /**
+    * Validates that truth and test hyperstacks have compatible dimensions.
+    * Checks width, height, number of channels, slices, and frames.
+    *
+    * @param truth the ground truth image
+    * @param test the test image
+    * @return true if all dimensions are compatible, false and displays error otherwise
+    */
     private boolean checkHyperstackCompatibility(ImagePlus truth, ImagePlus test) {
 
         if (truth.getWidth() != test.getWidth() ||
@@ -292,6 +341,16 @@ public class MaskInstantComparator3D implements PlugIn {
 
         return true;
     }
+
+    /**
+    * Extracts a 3D volume (C-Z) from the source hyperstack for a specific channel and frame.
+    * Returns a new ImagePlus containing all slices for the given channel and time point.
+    *
+    * @param source the source hyperstack image
+    * @param channel the channel index to extract
+    * @param frame the frame (time point) index to extract
+    * @return a new ImagePlus containing the extracted C-Z volume as a stack
+    */
     private ImagePlus extractCZVolume(ImagePlus source, int channel, int frame) {
 
         int width = source.getWidth();
@@ -321,6 +380,11 @@ public class MaskInstantComparator3D implements PlugIn {
     }
 
 
+    /**
+    * Retrieves the IoU thresholds to be used for composite visualization based on comparison methods.
+    *
+    * @return array of IoU threshold values
+    */
     private double[] getCompositeIoUThresholds() {
 
         LinkedHashMap<Integer, Double> thresholds = new LinkedHashMap<>();
@@ -357,6 +421,14 @@ public class MaskInstantComparator3D implements PlugIn {
 
 
 
+    /**
+     * Builds and displays composite hyperstack images showing IoU-colored comparisons
+     * for all channels and time points. Creates color-coded representations of object
+     * correspondences using the configured composite LUT.
+     *
+     * @param originalTruth the full truth hyperstack
+     * @param originalTest the full test hyperstack
+     */
     private void buildAndShowCompositeHyperstacks(ImagePlus originalTruth, ImagePlus originalTest) {
         double[] thresholds = getCompositeIoUThresholds();
         if (thresholds.length == 0) {
@@ -438,13 +510,20 @@ public class MaskInstantComparator3D implements PlugIn {
     }
 
     /**
-     * Calculate the stats and add it all to the result table
-     *
-     * @param method : Object, Pixel or Object-Pixel
-     * @param tp     : True Positives
-     * @param fp     : False Positives
-     * @param fn     : False Negatives
-     */
+    * Internal method to add metric data to a results table.
+    * Calculates and records TP, FP, FN, and derived statistics for the given comparison method.
+    *
+    * @param resultsTable the table to update
+    * @param method the comparison method name ("Pixel", "Object", etc.)
+    * @param tp true positives count
+    * @param fp false positives count
+    * @param fn false negatives count
+    * @param precision calculated precision value
+    * @param sensitivity calculated sensitivity (recall) value
+    * @param jaccardIndex calculated Jaccard index
+    * @param fmeasure calculated F-measure
+    * @param threshold the IoU threshold (or -1 if not applicable)
+    */
     private void addToResultTable(ResultsTable resultsTable, String method, double tp, double fp, double fn,double precision, double sensitivity,double jaccardIndex, double fmeasure, double threshold) {
 
 //        ADD TO RESULT TABLE
@@ -461,10 +540,11 @@ public class MaskInstantComparator3D implements PlugIn {
 
 
     /**
-     * Creates generate dialog with all the information to obtain
+     * Creates and configures the user input dialog for mask comparison parameters.
+     * Allows selection of input images, comparison methods, IoU thresholds, and output options.
      *
-     * @param useOpenImages : if user want to use open images
-     * @return GenericDialog
+     * @param useOpenImages if true, shows image selection from open windows; otherwise shows file paths
+     * @return the configured GenericDialog with all parameter fields
      */
     private GenericDialog getGenericDialog(boolean useOpenImages) {
         GenericDialog gd = new GenericDialog("Mask instant Comparator");
@@ -569,6 +649,13 @@ public class MaskInstantComparator3D implements PlugIn {
     }
 
 
+    /**
+    * Extracts user choices from the GenericDialog and initializes plugin parameters.
+    * Sets up images, comparison methods, thresholds, and display options.
+    *
+    * @param gd the GenericDialog containing user inputs
+    * @param useOpenImages if true, interprets choices as open image titles; otherwise as file paths
+    */
     private void getChoicesFromGD(GenericDialog gd, boolean useOpenImages) {
 //        Get truth and test images' and ROIs' paths
         String truthMaskPathOrTitle;
@@ -638,11 +725,13 @@ public class MaskInstantComparator3D implements PlugIn {
 
 
     /**
-     * @param imagePath : path of image
-     * @param showImage : display the image or not
-     *                  If displayed, modify the display range to be able to see the segmentation results
-     * @return ImagePlus without invertedLut and without calibration
-     */
+    * Loads an image from the specified file path.
+    * Optionally displays the image with adjusted display range for visibility.
+    *
+    * @param imagePath the file path to the image
+    * @param showImage if true, displays the image with adjusted display range
+    * @return the loaded ImagePlus, or null if file doesn't exist or is not a file
+    */
     private static ImagePlus getImage(String imagePath, boolean showImage) {
 //        OPEN IMAGE
 
@@ -665,6 +754,19 @@ public class MaskInstantComparator3D implements PlugIn {
         }
     }
 
+    /**
+    * Creates and adds a performance metrics graph to the graph hyperstack.
+    * Plots precision, sensitivity, Jaccard index, and F-measure across IoU thresholds.
+    *
+    * @param channel the channel index
+    * @param frame the frame index
+    * @param title the plot title
+    * @param thresholds the IoU threshold values (x-axis)
+    * @param precision the precision scores
+    * @param sensitivity the sensitivity/recall scores
+    * @param jaccardIndex the Jaccard index scores
+    * @param fmeasure the F-measure scores
+    */
     private void createGraphs(int channel,int frame, String title,double[] thresholds, double[] precision, double[] sensitivity, double[] jaccardIndex, double[] fmeasure){
         IJ.log("add graphs");
         Plot plot=new Plot(title,"overlap threshold","score");
@@ -701,6 +803,13 @@ public class MaskInstantComparator3D implements PlugIn {
         graphHyperStack.getStack().setSliceLabel("C"+channel+"_T"+frame, stackIndex);
     }
 
+    /**
+    * Constructs a hyperstack containing correspondence/IoU visualizations for all channels and frames.
+    * Organizes individual correspondence images into a multi-dimensional hyperstack.
+    *
+    * @param nChannels the number of channels
+    * @param nFrames the number of frames
+    */
     private void buildCorrespondanceHyperStack(int nChannels, int nFrames){
         int maxWidth = 1;
         int maxHeight = 1;

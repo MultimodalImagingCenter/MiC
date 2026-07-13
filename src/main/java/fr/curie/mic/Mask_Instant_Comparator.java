@@ -45,7 +45,22 @@ import java.util.Vector;
 
 
 //TODO centre géométrique
-// Class to compare two mask and measure the differences between them
+/**
+ * ImageJ plugin to compare two segmentation masks and compute detailed metrics.
+ * <p>
+ * This plugin supports three comparison methods:
+ * <ul>
+ *   <li><b>Pixel Method:</b> Pixel-by-pixel comparison of foreground/background</li>
+ *   <li><b>Object Method:</b> Object-level matching using Intersection over Union (IoU)</li>
+ *   <li><b>Pixel-Object Method:</b> Combined approach with IoU-based thresholds</li>
+ * </ul>
+ * </p>
+ * <p>
+ * Generates composite visualizations and detailed correspondence tables showing which objects
+ * match between truth and test masks, including overlap percentages and classification
+ * (TP, FP, FN, etc.).
+ * </p>
+ */
 public class Mask_Instant_Comparator implements PlugIn {
     //    Binary images to compare
     private ImagePlus truthMaskIP;
@@ -113,23 +128,25 @@ public class Mask_Instant_Comparator implements PlugIn {
     //    CONSTRUCTOR
 
     /**
-     * GUI constructor
+     * Constructor for use in GUI mode (no parameters).
      */
     public Mask_Instant_Comparator() {
 
     }
 
     /**
+     * Constructor to initialize the comparator with images and comparison parameters.
      *
-     * @param truthMaskIP:      Image corresponding to manually verified particles
-     * @param testMaskIP:       Image corresponding to particles segmentation to compare
-     * @param pixelMethod       : use Pixel method to compare both masks
-     * @param objectMethod      : use Object method to compare both mask
-     * @param pixelObjectMethod : use mixe method (Object Pixel) to compare both masks
-     * @param overlapMin        : proportion of overlapping pixel for Mixe method to consider an object as true positive
-     * @param overlapMax        : proportion of overlapping pixel for Mixe method to consider an object as true positive
-     * @param overlapInc        : proportion of overlapping pixel for Mixe method to consider an object as true positive
-     *
+     * @param truthMaskIP the ground truth segmentation mask image
+     * @param testMaskIP the test segmentation mask image to compare
+     * @param pixelMethod enable pixel-level comparison
+     * @param objectMethod enable object-level comparison
+     * @param pixelObjectMethod enable combined pixel-object comparison with IoU thresholds
+     * @param overlapMin minimum overlap threshold for IoU-based matching
+     * @param overlapMax maximum overlap threshold for IoU-based matching
+     * @param overlapInc increment step for IoU threshold scanning
+     * @param minSize minimum object size (pixels) to consider in analysis
+     * @param maxSize maximum object size (pixels) to consider in analysis
      */
     public Mask_Instant_Comparator(ImagePlus truthMaskIP, ImagePlus testMaskIP, boolean pixelMethod, boolean objectMethod, boolean pixelObjectMethod, double overlapMin, double overlapMax, double overlapInc, double minSize, double maxSize) {
         this.truthMaskIP = truthMaskIP;
@@ -150,16 +167,16 @@ public class Mask_Instant_Comparator implements PlugIn {
     }
 
     /**
-     * Constructor to use outside of GUI
+     * Constructor that loads images from file paths.
      *
-     * @param truthMaskPath     : Path of the mask manually segmented.
-     * @param testMaskPath      : Path of the mask automatically segmented.
-     * @param pixelMethod       : use Pixel method to compare both masks
-     * @param objectMethod      : use Object method to compare both mask
-     * @param pixelObjectMethod : use Mixe method (Object Pixel) to compare both masks
-     * @param overlapMin        : proportion of overlapping pixel for Mixe method to consider an object as true positive
-     * @param overlapMax        : proportion of overlapping pixel for Mixe method to consider an object as true positive
-     * @param overlapInc        : proportion of overlapping pixel for Mixe method to consider an object as true positive
+     * @param truthMaskPath path to the ground truth segmentation mask image
+     * @param testMaskPath path to the test segmentation mask image
+     * @param pixelMethod enable pixel-level comparison
+     * @param objectMethod enable object-level comparison
+     * @param pixelObjectMethod enable combined pixel-object comparison
+     * @param overlapMin minimum IoU threshold for matching
+     * @param overlapMax maximum IoU threshold for matching
+     * @param overlapInc increment step for IoU threshold scanning
      */
     public Mask_Instant_Comparator(String truthMaskPath, String testMaskPath, boolean pixelMethod, boolean objectMethod, boolean pixelObjectMethod, double overlapMin, double overlapMax, double overlapInc) {
         this(getImage(truthMaskPath, true), getImage(testMaskPath, true), pixelMethod, objectMethod, pixelObjectMethod, overlapMin, overlapMax, overlapInc, 0, Double.POSITIVE_INFINITY);
@@ -168,10 +185,11 @@ public class Mask_Instant_Comparator implements PlugIn {
 //    SETTER
 
     /**
-     * If the user has the Rois file, they can be used directly
+     * Loads ROI regions from a file and assigns them to either truth or test masks.
+     * Clears existing ROIs from the RoiManager before loading new ones.
      *
-     * @param roiPath : path of the roi file
-     * @param truth   : if true, path of the truth ROIs file, else it is the test ROIs path
+     * @param roiPath path to the ROI file (typically a .zip file)
+     * @param truth if true, loads as truth ROIs; if false, loads as test ROIs
      */
     public void setRois(String roiPath, boolean truth) {
         /*Opens the ROIs file (normally a zip file) through the RoiManager*/
@@ -204,11 +222,12 @@ public class Mask_Instant_Comparator implements PlugIn {
 // METHODS/FUNCTIONS
 
     /**
+     * Creates a labeled image from an array of ROIs, where each ROI is filled with a unique intensity.
      *
-     * @param imageWidth  : width of image
-     * @param imageHeight : height of image
-     * @param rois        : array of ROIs to print on image
-     * @return image with one intensity per ROI
+     * @param imageWidth the width of the output image
+     * @param imageHeight the height of the output image
+     * @param rois array of ROI objects to draw
+     * @return a ShortProcessor with each ROI filled with intensity i+1
      */
     public static ImageProcessor labeledImage(int imageWidth, int imageHeight, Roi[] rois) {
         ImageProcessor ip = new ShortProcessor(imageWidth, imageHeight);/*NewImage.createShortImage("labeledImage",imageWidth,imageHeight,1,NewImage.FILL_BLACK);*/
@@ -220,10 +239,14 @@ public class Mask_Instant_Comparator implements PlugIn {
     }
 
     /**
-     * Reproduce the concept of particle analyzer but considers objects with different values of intensities as different
+     * Extracts individual objects from an image where each object is differentiated by pixel intensity.
+     * Unlike standard particle analysis, treats each unique intensity value as a separate object.
+     * Filters objects by size constraints.
      *
-     * @param ip : image with the different objects differentiated by intensity value
-     * @return array of the objects Rois
+     * @param ip the image processor with objects labeled by intensity
+     * @param minSize minimum object size in pixels
+     * @param maxSize maximum object size in pixels
+     * @return array of ROI objects representing extracted particles
      */
     public static Roi[] oneIntensityParticleAnalyzer(ImageProcessor ip, double minSize, double maxSize) {
         ip.snapshot(); /* makes copy of image's pixel data that can be later restored*/
@@ -277,11 +300,12 @@ public class Mask_Instant_Comparator implements PlugIn {
     }
 
     /**
-     * Creates composite image to compare visually segmentation
+     * Creates a composite RGB image for visual comparison of truth and test masks.
+     * Merges the binary versions of both masks into red and green channels.
      *
-     * @param truthMaskIP : truth segmentation image
-     * @param testMaskIP  : segmentation to test image
-     * @return composite image to compare both segmentation visually
+     * @param truthMaskIP the ground truth segmentation image
+     * @param testMaskIP the test segmentation image
+     * @return composite RGB image where test mask is red and truth mask is green
      */
     public static ImagePlus combineImages(ImagePlus truthMaskIP, ImagePlus testMaskIP) {
         ImageStack testStack = new ImageStack();
@@ -307,17 +331,20 @@ public class Mask_Instant_Comparator implements PlugIn {
     }
 
     private static ByteProcessor getMaskBinary(ImagePlus maskIP) {
-        //        Create binary image (essentially in case of image with one intensity per particle)
-//        --> threshold image
+        //Create binary image (essentially in case of image with one intensity per particle)
+        //Threshold and create mask from labeled image
         maskIP.resetDisplayRange();
         maskIP.getProcessor().setThreshold(1, maskIP.getProcessor().getMax());
 
-//        --> create ByteProcessor
         return maskIP.getProcessor().createMask();
     }
 
     /**
-     * Verify both images have the same size and combine all the results of the comparison methods
+     * Main analysis method that validates inputs and performs comparison across all slices, channels, and frames.
+     * Verifies image compatibility (size, dimensions, type) before proceeding with analysis.
+     * Generates analysis results, composite images, and correspondence tables.
+     *
+     * @return true if analysis completed successfully, false if validation failed
      */
     public boolean analysis() {
         IJ.log("Truth image:" + truthMaskIP.getTitle());
