@@ -90,33 +90,32 @@ Depending on the choice of parameters, the outputs consist of
 
 #### image: display of masks GT_VS_mask
 
-![MiC, output image](ressources/MiC_output_image.png)
+![MiC, output image](ressources/MIC_output_image2.png)
 This stack of images is displayed when the option "Show composite images" is selected. The first slice is the pixel level superposition if the option "Pixel" is selected. The second is the Object level (IoU = 0.5) superposition if the option "Object (IoU=0.5)" is selected. The next slices correspond to object level  with varying IoU thresholds, when the corresponding option is selected. The IoU thresholds used are displayed in the slice label.
 
 The mask to test is superimposed to the ground truth with a color code
-+ for pixel level
-	*  ![MiC, dialog window](ressources/green.png) **green** for GT (FN)
-	* ![MiC, dialog window](ressources/red.png) **red** for mask (FP)
-	* ![MiC, dialog window](ressources/yellow.png) **yellow** where the two masks overlaps (TP)
-
+##### for pixel level
+ *  ![MiC, dialog window](ressources/green.png) **green** for GT (FN)
+ * ![MiC, dialog window](ressources/red.png) **red** for mask (FP)
+ * ![MiC, dialog window](ressources/yellow.png) **yellow** where the two masks overlaps (TP)
+  
 <BR>
 
-+ for object level (the IoU threshold is displayed in the slice label)	
-	-  ![MiC, dialog window](ressources/yellow.png) **yellow** (TP): these are objects common to both masks (GT, test) and validated by the given IoU threshold. 
-	-  ![MiC, dialog window](ressources/green.png) **green** (TP): these are true positives with objects that are underestimated (smaller in the test mask).
-	- ![MiC, dialog window](ressources/red.png) **red** (TP): these are true positives with objects that are overestimated (larger in the test mask). 
-	- ![MiC, dialog window](ressources/darkgreen.png) **dark green** (FN): these are false negatives, objects in the GT mask that don't match any object in test mask.
-	- ![MiC, dialog window](ressources/blue.png) **blue** (FP): These are false positives, test mask objects that do not match any object in GT mask.
-	- ![MiC, dialog window](ressources/cyan.png) **cyan** (FP and FN or FP): two possibilities:
-		- these are objects common to both masks (GT, test ) but not validated by the given IoU threshold. 
-		- These are false positives corresponding to the division of an object in the GT mask into several objects in the test mask. One of the objects in the test mask will be yellow or cyan (depending on validation by the given IoU threshold), the others will necessarily be cyan.
-	- ![MiC, dialog window](ressources/orange.png) **orange** (FN): These are false negatives corresponding to the merging of objects in the GT mask into a single object in the test mask, one of whose objects is validated by the given IoU threshold. One of the objects in the GT mask will be yellow, while the others will be orange.
-	- ![MiC, dialog window](ressources/royalblue.png) **royal blue** (FP): These are false positives that correspond to the merging of objects in the GT mask into a single object in the test mask, one of whose objects has a match but is not validated by the given IoU threshold. One of the objects in the GT mask will be cyan, the others will be royal blue (often also associated with dark green).
-	-   ![MiC, dialog window](ressources/grey.png) **grey**: these are objects eliminated with respect of distance to border parameter. 
-	-  ![MiC, dialog window](ressources/black.png) **black**: pixels belonging to no object.
-	
-___Warning!___  
-Take a special care when using the option "Object (varying IoU)", the number of image can be quite high depending on the number of slices and the number of thresholds tested (defined using minimum, maximum and increment). As it is a composite image 4 images are created for each test (green for GT, red for TP in mask, blue for FN in mask and gray for non valid objects), the memory usage is high. 
+##### for object level (the IoU threshold is displayed in the slice label)	
+ 0. ![MiC, dialog window](ressources/black.png) **black**: pixels belonging to no object.
+ 1. ![MiC, dialog window](ressources/yellow.png) **yellow** (TP): these are objects common to both masks (GT, test) and validated by the given IoU threshold. 
+ 2. ![MiC, dialog window](ressources/red.png) **red** (TP): these are true positives with objects that are overestimated (larger in the test mask).
+ 3. ![MiC, dialog window](ressources/green.png) **green** (TP): these are true positives with objects that are underestimated (smaller in the test mask).
+ 4. ![MiC, dialog window](ressources/orange.png) **orange** (FN): These are false negatives corresponding to the merging (fusion) of objects in the GT mask into a single object in the test mask, one of whose objects is validated by the given IoU threshold. One of the objects in the GT mask will be yellow, while the others will be orange.
+ 5. ![MiC, dialog window](ressources/cyan.png) **cyan** (FP): These are False positives where an object in the GT mask is split into multiple objects in the test mask. One object in the test mask will be yellow or cyan (depending on IoU validation), while others will be cyan.
+ 6. ![MiC, dialog window](ressources/blue.png) **blue** (FP and FN): These are Objects common to both masks but not validated by the IoU threshold. The blue color covers the common area.
+ 7. ![MiC, dialog window](ressources/purple.png) **purple** (FP or FN): These are Objects common to both masks but not validated by the IoU threshold. The purple color covers the diverging area.
+ 8. ![MiC, dialog window](ressources/darkred.png) **dark red** (FP): These are false positives, test mask objects that do not match any object in GT mask.
+ 9. ![MiC, dialog window](ressources/darkgreen.png) **dark green** (FN): these are false negatives, objects in the GT mask that don't match any object in test mask.
+ 10. ![MiC, dialog window](ressources/grey.png) **grey**: these are objects eliminated with respect of distance to border parameter.
+ 11. ![MiC, dialog window](ressources/white.png) **white**: these are objects already validated as true positives but with a secondary overlap with another object. The white color covers the overlapping area.
+
+    
 
 #### result window 1: Mask comparison results
 
