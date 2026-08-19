@@ -101,34 +101,35 @@ The test mask is superimposed on the ground truth mask.
 
 0. ![black](ressources/black.png) **black**: pixels belonging to background.
 1. ![yellow](ressources/yellow.png) **yellow**: overlapping pixels between the two masks (TP).
-2. ![orange](ressources/orange.png): pixels present only in the test mask (FP).
-3. ![light blue](ressources/lightblue.png) **light blue**: pixels presentound truth mask (FN).
+2. ![orange](ressources/orange.png) **orange**: pixels present only in the test mask (FP).
+3. ![light blue](ressources/lightblue.png) **light blue**: pixels present only in the ground truth mask (FN).  
 
 ##### Object level
 
-0. ![black](ressources/black.png) **black**:longing to no object.
+0. ![black](ressources/black.png) **black**:pixels belonging to no object.
 
-1. ![yellow](ressources/yellow.png) **yellow: objects common to both masks and validated by the selected IoU threshold.
+1. ![yellow](ressources/yellow.png) **yellow** (**TP**): objects common to both masks and validated by the selected IoU threshold.
 
-2. ![orange](ressources/orange.png) **orange** (**TP_OVER**): truewhere the corresponding test object is larger than the ground truth object.
+2. ![orange](ressources/orange.png) **orange** (**TP_OVER**): true positives where the corresponding test object is larger than the ground truth object.
 
-3. ![light blue](ressources/lightblue.png) **light blue** (**TP_UNDER**): true positivesesponding test object is smaller than the ground truth object.
+3. ![light blue](ressources/lightblue.png) **light blue** (**TP_UNDER**): true positives where the corresponding test object is smaller than the ground truth object.
 
-4. ![magenta](ressources/magenta.png) **magenta** (**FUSED / MERGE**): false negativeshe fusion of multiple ground truth objects into a single test object. One object may be validated as TP while the remaining merged objects are displayed in magenta.
+4. ![magenta](ressources/magenta.png) **magenta** (**FUSED / MERGE**): false negatives caused by the fusion of multiple ground truth objects into a single test object. One object may be validated as TP while the remaining merged objects are displayed in magenta.
 
-5. ![turquoise](ressources/turquoise.png) **turquoise** (**SPLIT**): false positives causeding of one ground truth object into several test objects.
+5. ![turquoise](ressources/turquoise.png) **turquoise** (**SPLIT**): false positives caused by the splitting of one ground truth object into several test objects.
+        
+6. ![blue](ressources/blue.png) **blue** (**UNDER_IOU**): overlapping area between corresponding objects that do not satisfy the selected IoU threshold.
 
-6. ![blue](ressources/blue.png) **blue** (**UNDER_verlapping area between corresponding objects that do not satisfy the selected IoU threshold.
+7. ![purple](ressources/purple.png) **purple** (**UNDER_IOU_EXT**): non-overlapping area between corresponding objects that do not satisfy the selected IoU threshold.
 
-7. ![purple](ressources/purple.png) **purple** (**UNDER_IOU_EXT**): non-overlapping area between ng objects that do not satisfy the selected IoU threshold.
+8. ![brown](ressources/brown.png) **brown** (**FP**): false positive objects present only in the test mask.
 
-8. ![brown](ressources/brown.png) **brown** (**FP**): false positiveresent only in the test mask.
+9. ![royal blue](ressources/royalblue.png) **royal blue** (**FN**): false negative objects present only in the ground truth mask.
 
-9. ![royal blue](ressources/royalblue.png) **royal blue** (**FN**): false negative objects presentound truth mask.
+10. ![grey](ressources/grey.png) **grey** (**NOT_ANALYZED**): objects excluded from the analysis (e.g. border filtering or size filtering).
 
-10. ![grey](ressources/grey.png) **grey** (**NOT_ANALYZED**): objects excluded from the (e.g. border filtering or size filtering).
+11. ![white](ressources/white.png) **white** (**SECONDARY_OVERLAP**): overlap region between an already validated TP pair and an additional object.
 
-11. ![white](ressources/white.png) **white** (**SECONDARY_OVERLAP**): overlap region between an already validatednd an additional object.
 #### result window 1: Mask comparison results
 
 This result table displays for each slice 
