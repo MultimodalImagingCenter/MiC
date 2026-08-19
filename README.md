@@ -93,28 +93,42 @@ Depending on the choice of parameters, the outputs consist of
 ![MiC, output image](ressources/MIC_output_image2.png)
 This stack of images is displayed when the option "Show composite images" is selected. The first slice is the pixel level superposition if the option "Pixel" is selected. The second is the Object level (IoU = 0.5) superposition if the option "Object (IoU=0.5)" is selected. The next slices correspond to object level  with varying IoU thresholds, when the corresponding option is selected. The IoU thresholds used are displayed in the slice label.
 
-The mask to test is superimposed to the ground truth with a color code
-##### for pixel level
- *  ![MiC, dialog window](ressources/green.png) **green** for GT (FN)
- * ![MiC, dialog window](ressources/red.png) **red** for mask (FP)
- * ![MiC, dialog window](ressources/yellow.png) **yellow** where the two masks overlaps (TP)
-  
-<BR>
+The mask to test is superimposed to the ground truth with a color code in an indexed color image (bellow the value of the index is given with the color code)
 
-##### for object level (the IoU threshold is displayed in the slice label)	
- 0. ![MiC, dialog window](ressources/black.png) **black**: pixels belonging to no object.
- 1. ![MiC, dialog window](ressources/yellow.png) **yellow** (TP): these are objects common to both masks (GT, test) and validated by the given IoU threshold. 
- 2. ![MiC, dialog window](ressources/red.png) **red** (TP): these are true positives with objects that are overestimated (larger in the test mask).
- 3. ![MiC, dialog window](ressources/green.png) **green** (TP): these are true positives with objects that are underestimated (smaller in the test mask).
- 4. ![MiC, dialog window](ressources/orange.png) **orange** (FN): These are false negatives corresponding to the merging (fusion) of objects in the GT mask into a single object in the test mask, one of whose objects is validated by the given IoU threshold. One of the objects in the GT mask will be yellow, while the others will be orange.
- 5. ![MiC, dialog window](ressources/cyan.png) **cyan** (FP): These are False positives where an object in the GT mask is split into multiple objects in the test mask. One object in the test mask will be yellow or cyan (depending on IoU validation), while others will be cyan.
- 6. ![MiC, dialog window](ressources/blue.png) **blue** (FP and FN): These are Objects common to both masks but not validated by the IoU threshold. The blue color covers the common area.
- 7. ![MiC, dialog window](ressources/purple.png) **purple** (FP or FN): These are Objects common to both masks but not validated by the IoU threshold. The purple color covers the diverging area.
- 8. ![MiC, dialog window](ressources/darkred.png) **dark red** (FP): These are false positives, test mask objects that do not match any object in GT mask.
- 9. ![MiC, dialog window](ressources/darkgreen.png) **dark green** (FN): these are false negatives, objects in the GT mask that don't match any object in test mask.
- 10. ![MiC, dialog window](ressources/grey.png) **grey**: these are objects eliminated with respect of distance to border parameter.
- 11. ![MiC, dialog window](ressources/white.png) **white**: these are objects already validated as true positives but with a secondary overlap with another object. The white color covers the overlapping area.
 
+##### Pixel level
+
+The test mask is superimposed on the ground truth mask.
+0. <span style="display:inline-block;width:12px;height:12px;background:#000000;border:1px solid #666;"></span> **black**: pixels belonging to background.
+1. <span style="display:inline-block;width:12px;height:12px;background:#F0E442;border:1px solid #666;"></span> **yellow**: overlapping pixels between the two masks (TP).
+2. <span style="display:inline-block;width:12px;height:12px;background:#E69F00;border:1px solid #666;"></span> **orange**: pixels present only in the test mask (FP).
+3. <span style="display:inline-block;width:12px;height:12px;background:#56B4E9;border:1px solid #666;"></span> **light blue**: pixels present only in the ground truth mask (FN).
+
+##### Object level
+
+0. <span style="display:inline-block;width:12px;height:12px;background:#000000;border:1px solid #666;"></span> **black**: pixels belonging to no object.
+
+1. <span style="display:inline-block;width:12px;height:12px;background:#F0E442;border:1px solid #666;"></span> **yellow** (**TP**): objects common to both masks and validated by the selected IoU threshold.
+
+2. <span style="display:inline-block;width:12px;height:12px;background:#E69F00;border:1px solid #666;"></span> **orange** (**TP_OVER**): true positives where the corresponding test object is larger than the ground truth object.
+
+3. <span style="display:inline-block;width:12px;height:12px;background:#56B4E9;border:1px solid #666;"></span> **light blue** (**TP_UNDER**): true positives where the corresponding test object is smaller than the ground truth object.
+
+4. <span style="display:inline-block;width:12px;height:12px;background:#CC79A7;border:1px solid #666;"></span> **magenta** (**FUSED / MERGE**): false negatives caused by the fusion of multiple ground truth objects into a single test object. One object may be validated as TP while the remaining merged objects are displayed in magenta.
+
+5. <span style="display:inline-block;width:12px;height:12px;background:#009E73;border:1px solid #666;"></span> **turquoise** (**SPLIT**): false positives caused by the splitting of one ground truth object into several test objects.
+
+6. <span style="display:inline-block;width:12px;height:12px;background:#0000F0;border:1px solid #666;"></span> **blue** (**UNDER_IOU**): overlapping area between corresponding objects that do not satisfy the selected IoU threshold.
+
+7. <span style="display:inline-block;width:12px;height:12px;background:#7570B3;border:1px solid #666;"></span> **purple** (**UNDER_IOU_EXT**): non-overlapping area between corresponding objects that do not satisfy the selected IoU threshold.
+
+8. <span style="display:inline-block;width:12px;height:12px;background:#8C510A;border:1px solid #666;"></span> **brown** (**FP**): false positive objects present only in the test mask.
+
+9. <span style="display:inline-block;width:12px;height:12px;background:#4169B4;border:1px solid #666;"></span> **royal blue** (**FN**): false negative objects present only in the ground truth mask.
+
+10. <span style="display:inline-block;width:12px;height:12px;background:#808080;border:1px solid #666;"></span> **grey** (**NOT_ANALYZED**): objects excluded from the analysis (e.g. border filtering or size filtering).
+
+11. <span style="display:inline-block;width:12px;height:12px;background:#FFFFFF;border:1px solid #666;"></span> **white** (**SECONDARY_OVERLAP**): overlap region between an already validated TP pair and an additional object.
     
 
 #### result window 1: Mask comparison results

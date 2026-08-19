@@ -735,7 +735,7 @@ public class Mask_Instant_Comparator implements PlugIn {
 
     private void createCompositeStack() {
         IJ.log("create composite");
-        lutComposite = IoUAnalysis.getMiCLUT();
+        lutComposite = IoUAnalysis.getMiCLUT_colorblind();
 
         int nbIndexes = ((pixelObjectMethod) ? (int) Math.round((overlapMax - overlapMin) / overlapInc + 1) : 0);
         IJ.log("nbIndexes:" + nbIndexes);
@@ -873,23 +873,38 @@ public class Mask_Instant_Comparator implements PlugIn {
         }
     }
 
-
     private void addCompositePixels(ImagePlus imp, int index, int channel, int time, int slice) {
-        IJ.log("add composite from pixels");
         truthMaskIP.setPosition(channel + 1, slice, time + 1);
         testMaskIP.setPosition(channel + 1, slice, time + 1);
-        ByteProcessor truthMaskBinary = getMaskBinary(truthMaskIP);
-        ByteProcessor testMaskBinary = getMaskBinary(testMaskIP);
-        ColorProcessor col = new ColorProcessor(truthMaskIP.getWidth(), truthMaskIP.getHeight());
-        col.setChannel(1, testMaskBinary);
-        col.setChannel(2, truthMaskBinary);
-        ImagePlus rgb = new ImagePlus("rgb", col);
-        ImageConverter converter = new ImageConverter(rgb);
-        converter.convertRGBtoIndexedColor(256);
-        imp.getImageStack().getProcessor(imp.getStackIndex(index, slice, time +1)).copyBits(rgb.getProcessor(), 0, 0, Blitter.COPY);
+
+        ByteProcessor truth = getMaskBinary(truthMaskIP);
+        ByteProcessor test = getMaskBinary(testMaskIP);
+
+        ByteProcessor result = new ByteProcessor(truth.getWidth(), truth.getHeight());
+
+        for (int y = 0; y < truth.getHeight(); y++) {
+            for (int x = 0; x < truth.getWidth(); x++) {
+                boolean gt = truth.get(x, y) != 0;
+                boolean ts = test.get(x, y) != 0;
+
+                if (!gt && !ts) {
+                    result.set(x, y, 0);      // fond
+                } else if (gt && !ts) {
+                    result.set(x, y, 3);      // underestimated or FN (light blue)
+                } else if (!gt && ts) {
+                    result.set(x, y, 2);      // overestimated or FP (orange)
+                } else {
+                    result.set(x, y, 1);      // TP (yellow)
+                }
+            }
+        }
+
+        imp.getImageStack().getProcessor(imp.getStackIndex(index, slice, time + 1))
+                .copyBits(result, 0, 0, Blitter.COPY);
 
         CompositeImage ci = (CompositeImage) imp;
-        ci.setChannelLut(rgb.getProcessor().getLut(), index);
+        ci.setChannelLut(IoUAnalysis.getMiCLUT_colorblind(), index);
+
         imp.resetDisplayRange();
     }
 
@@ -1349,6 +1364,7 @@ public class Mask_Instant_Comparator implements PlugIn {
 
             if (compositeImage != null) {
                 for (ImagePlus ip : compositeImage) {
+                    if(ip.getNSlices()>1) ip.setSlice(2);
                     ip.show();
                 }
             }

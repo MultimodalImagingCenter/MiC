@@ -130,7 +130,7 @@ public class MaskInstantComparator3D implements PlugIn {
             pixelObjectResultsTable = new ResultsTable();
         }
 
-        if(showComposite) lutcomposite = IoUAnalysis.getMiCLUT();
+        if(showComposite) lutcomposite = IoUAnalysis.getMiCLUT_colorblind();
         analysis();
 
         resultsTable.show("Mask comparison results");
@@ -445,7 +445,7 @@ public class MaskInstantComparator3D implements PlugIn {
         int nFrames = originalTruth.getNFrames();
 
         if (lutcomposite == null) {
-            lutcomposite = IoUAnalysis.getMiCLUT();
+            lutcomposite = IoUAnalysis.getMiCLUT_colorblind();
         }
 
         for (int originalChannel = 1; originalChannel <= nOriginalChannels; originalChannel++) {

@@ -217,10 +217,109 @@ public class IoUAnalysis {
 
         return new LUT(r, g, b);
     }
+    /**
+     * Builds a colorblind-friendly MiC Look-Up Table (LUT) for object-based
+     * comparison visualization.
+     *
+     * Maps label indices to RGB values representing the various relationships
+     * between ground truth and test objects.
+     *
+     * Color scheme:
+     * - TP (index 1): Yellow - true positive object validated by the IoU threshold.
+     * - TP_OVER (index 2): Orange - true positive where the test object is larger
+     *   than the corresponding ground truth object.
+     * - TP_UNDER (index 3): Light Blue - true positive where the test object is
+     *   smaller than the corresponding ground truth object.
+     * - FUSED (index 4): Magenta - false negative caused by the fusion of several
+     *   ground truth objects into a single test object.
+     * - SPLIT (index 5): Turquoise - false positive caused by the splitting of a
+     *   ground truth object into multiple test objects.
+     * - UNDER_IOU (index 6): Blue - overlapping region between corresponding
+     *   objects that do not satisfy the IoU threshold.
+     * - UNDER_IOU_EXT (index 7): Purple - non-overlapping region of corresponding
+     *   objects that do not satisfy the IoU threshold.
+     * - FP (index 8): Brown - false positive object present only in the test mask.
+     * - FN (index 9): Royal Blue - false negative object present only in the
+     *   ground truth mask.
+     * - NOT_ANALYZED (index 10): Grey - object excluded from analysis
+     *   (e.g. border or size filtering).
+     * - SECONDARY_OVERLAP (index 11): White - secondary overlap between already
+     *   validated object pairs.
+     *
+     * The palette uses warm colors for over-segmentation related errors and cool
+     * colors for under-segmentation related errors. Within each family, luminance
+     * reflects error severity, improving readability and accessibility for users
+     * with common forms of color vision deficiency.
+     *
+     * @return ImageJ LUT object for color mapping.
+     */
+    public static LUT getMiCLUT_colorblind() {
+        byte[] r = new byte[256];
+        byte[] g = new byte[256];
+        byte[] b = new byte[256];
+
+        // TP (yellow)
+        r[1] = (byte)240;
+        g[1] = (byte)228;
+        b[1] = (byte)66;
+
+        // TP_OVER (orange)
+        r[2] = (byte)230;
+        g[2] = (byte)159;
+        b[2] = (byte)0;
+
+        // TP_UNDER (light blue)
+        r[3] = (byte)86;
+        g[3] = (byte)180;
+        b[3] = (byte)233;
+
+        // FUSED / MERGE (magenta)
+        r[4] = (byte)204;
+        g[4] = (byte)121;
+        b[4] = (byte)167;
+
+        // SPLIT (turquoise)
+        r[5] = (byte)0;
+        g[5] = (byte)158;
+        b[5] = (byte)115;
+
+        // UNDER_IOU common area (blue)
+        r[6] = (byte)0;
+        g[6] = (byte)0;
+        b[6] = (byte)240;
+
+        // UNDER_IOU_EXT divergent area (purple)
+        r[7] = (byte)117;
+        g[7] = (byte)112;
+        b[7] = (byte)179;
+
+        // FP (brown)
+        r[8] = (byte)140;
+        g[8] = (byte)81;
+        b[8] = (byte)10;
+
+        // FN (royal blue)
+        r[9] = (byte)65;
+        g[9] = (byte)105;
+        b[9] = (byte)180;
+
+        // NOT_ANALYZED (grey)
+        r[10] = (byte)128;
+        g[10] = (byte)128;
+        b[10] = (byte)128;
+
+        // SECONDARY_OVERLAP (white)
+        r[11] = (byte)255;
+        g[11] = (byte)255;
+        b[11] = (byte)255;
+
+        return new LUT(r, g, b);
+    }
+
 
     /**
      * Returns the IoU matrix.
-     * 
+     *
      * @return ImageProcessor containing IoU values; iou[i][j] = IoU between truth object i and test object j
      */
     public ImageProcessor getIoU() {
