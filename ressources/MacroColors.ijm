@@ -1,69 +1,32 @@
-//yellow
-setForegroundColor(255, 255, 0);
-newImage("Untitled", "RGB black", 30, 20, 1);
-makeRectangle(2, 2, 26, 16);
-run("Fill", "slice");
-saveAs("PNG", "C:/cloud/progs/MiC-GitHub/MiC/ressources/yellow.png");
+dir = "C:/Users/cedric/OneDrive/prog/MIC-Github/MiC/ressources/";
 
-//green
-setForegroundColor(0, 255, 0);
-newImage("Untitled", "RGB black", 30, 20, 1);
-makeRectangle(2, 2, 26, 16);
-run("Fill", "slice");
-saveAs("PNG", "C:/cloud/progs/MiC-GitHub/MiC/ressources/green.png");
+function createColor(name, r, g, b) {
+    setForegroundColor(r, g, b);
+    newImage(name, "RGB black", 30, 20, 1);
+    makeRectangle(2, 2, 26, 16);
+    run("Fill", "slice");
+    saveAs("PNG", dir + name + ".png");
+    close();
+}
 
-//red
-setForegroundColor(255, 0, 0);
-newImage("Untitled", "RGB black", 30, 20, 1);
-makeRectangle(2, 2, 26, 16);
-run("Fill", "slice");
-saveAs("PNG", "C:/cloud/progs/MiC-GitHub/MiC/ressources/red.png");
+createColor("yellow",240,228,66);
+createColor("orange",230,159,0);
+createColor("lightblue",86,180,233);
+createColor("magenta",204,121,167);
+createColor("turquoise",0,158,115);
+createColor("blue",0,0,240);
+createColor("purple",117,112,179);
+createColor("brown",140,81,10);
+createColor("royalblue",65,105,180);
+createColor("grey",128,128,128);
 
-//darkgreen
-setForegroundColor(0, 150, 0);
-newImage("Untitled", "RGB black", 30, 20, 1);
-makeRectangle(2, 2, 26, 16);
-run("Fill", "slice");
-saveAs("PNG", "C:/cloud/progs/MiC-GitHub/MiC/ressources/darkgreen.png");
+newImage("black","RGB black",30,20,1);
+saveAs("PNG",dir+"black.png");
+close();
 
-//blue
-setForegroundColor(0, 0, 255);
-newImage("Untitled", "RGB black", 30, 20, 1);
-makeRectangle(2, 2, 26, 16);
-run("Fill", "slice");
-saveAs("PNG", "C:/cloud/progs/MiC-GitHub/MiC/ressources/blue.png");
-
-//cyan
-setForegroundColor(0, 255, 255);
-newImage("Untitled", "RGB black", 30, 20, 1);
-makeRectangle(2, 2, 26, 16);
-run("Fill", "slice");
-saveAs("PNG", "C:/cloud/progs/MiC-GitHub/MiC/ressources/cyan.png");
-
-//orange
-setForegroundColor(255, 150, 0);
-newImage("Untitled", "RGB black", 30, 20, 1);
-makeRectangle(2, 2, 26, 16);
-run("Fill", "slice");
-saveAs("PNG", "C:/cloud/progs/MiC-GitHub/MiC/ressources/orange.png");
-
-//royalblue
-setForegroundColor(0, 150, 255);
-newImage("Untitled", "RGB black", 30, 20, 1);
-makeRectangle(2, 2, 26, 16);
-run("Fill", "slice");
-saveAs("PNG", "C:/cloud/progs/MiC-GitHub/MiC/ressources/royalblue.png");
-
-
-//black
-newImage("Untitled", "RGB black", 30, 20, 1);
-saveAs("PNG", "C:/cloud/progs/MiC-GitHub/MiC/ressources/black.png");
-
-
-//grey
-setForegroundColor(128, 128, 128);
-newImage("Untitled", "RGB black", 30, 20, 1);
-makeRectangle(2, 2, 26, 16);
-run("Fill", "slice");
-saveAs("PNG", "C:/cloud/progs/MiC-GitHub/MiC/ressources/grey.png");
-
+setForegroundColor(255,255,255);
+newImage("white","RGB black",30,20,1);
+makeRectangle(2,2,26,16);
+run("Fill","slice");
+saveAs("PNG",dir+"white.png");
+close();
