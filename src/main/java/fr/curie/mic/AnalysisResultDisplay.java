@@ -9,6 +9,8 @@ import ij.process.Blitter;
 
 import java.awt.*;
 import ij.gui.Roi;
+import ij.process.ImageProcessor;
+
 import java.awt.Rectangle;
 
 /**
@@ -504,31 +506,33 @@ public class AnalysisResultDisplay {
             correspondenceTable.addValue("frame", time);
             correspondenceTable.addValue("slice", slice);
             correspondenceTable.addValue("roi truth", i);
-            correspondenceTable.addValue("centerX", rois[i].getBounds().getCenterX());
-            correspondenceTable.addValue("centerY", rois[i].getBounds().getCenterY());
+            if(rois!=null && rois[i] != null) {
+                correspondenceTable.addValue("centerX", rois[i].getBounds().getCenterX());
+                correspondenceTable.addValue("centerY", rois[i].getBounds().getCenterY());
+                Rectangle roi = rois[i].getBounds();
 
-            Rectangle roi = rois[i].getBounds();
+                double dist = Math.min(
+                        roi.getCenterX(),
+                        imageWidth - roi.getCenterX()
+                );
 
-            double dist = Math.min(
-                    roi.getCenterX(),
-                    imageWidth - roi.getCenterX()
-            );
+                dist = Math.min(
+                        dist,
+                        Math.min(
+                                roi.getCenterY(),
+                                imageHeight - roi.getCenterY()
+                        )
+                );
 
-            dist = Math.min(
-                    dist,
-                    Math.min(
-                            roi.getCenterY(),
-                            imageHeight - roi.getCenterY()
-                    )
-            );
-
-            correspondenceTable.addValue("center distance to border", dist);
+                correspondenceTable.addValue("center distance to border", dist);
+            }
             correspondenceTable.addValue("distance validated (1 for true)", valid[i] ? 1 : 0);
+
+
             correspondenceTable.addValue("corresponding roi test", correspondance[i]);
             correspondenceTable.addValue("IoU", overlapPercent[i]);
         }
         if(correspondance.length > 0) correspondenceTable.incrementCounter();
     }
-
 
 }

@@ -542,6 +542,8 @@ public class Mask_Instant_Comparator implements PlugIn {
         result.setFrame(time);
         result.setSlice(nrSlice);
         int indexComposite = 1;
+        truthMaskProc.setPixels(analysis.getTruth().getProcessor().getPixels());
+        testMaskProc.setPixels(analysis.getTest().getProcessor().getPixels());
 
         resultDisplay.addMainObjectCounts(analysis.getMaxTruth(), analysis.getMaxTest());
 
@@ -577,6 +579,15 @@ public class Mask_Instant_Comparator implements PlugIn {
                 resultDisplay.addThresholdAP(m);
             }
         }
+        if(showCorrespondances && (objectMethod || pixelObjectMethod)) {
+            boolean[] validTruth = getValidTruthFromIoU(analysis);
+            int[] objectAssignation = new int[analysis.getMaxTruth()];
+            double[] overlapPercents = new double[analysis.getMaxTruth()];
+            objectAssignationLabel(analysis.getMaxTruth(), analysis.getMaxTest(), analysis, objectAssignation, overlapPercents);
+            resultDisplay.addCorrespondence(truthMaskIP.getTitle(), channel, time, nrSlice, truthRois,
+                    objectAssignation, overlapPercents, validTruth, truthMaskIP.getWidth(), truthMaskIP.getHeight());
+
+        }
     }
 
     private void pairComparisonChoiceROI(int channel, int time, int nrSlice, ImageProcessor truthMaskProc, ImageProcessor testMaskProc, Roi[] truthRois, Roi[] testRois) {
@@ -598,8 +609,8 @@ public class Mask_Instant_Comparator implements PlugIn {
         if (objectMethod) {
             resultDisplay.addMainObjectCounts(truthRois.length, testRois.length);
         }
-        truthMaskProc = labeledImage(truthMaskProc.getWidth(), truthMaskProc.getHeight(), truthRois);
-        testMaskProc = labeledImage(testMaskProc.getWidth(), testMaskProc.getHeight(), testRois);
+        truthMaskProc.setPixels(labeledImage(truthMaskProc.getWidth(), truthMaskProc.getHeight(), truthRois).getPixels());
+        testMaskProc.setPixels(labeledImage(testMaskProc.getWidth(), testMaskProc.getHeight(), testRois).getPixels());
 
         IoUAnalysis roiAnalysis = IoUAnalysis.create(truthRois, testRois, truthMaskProc.getWidth(), truthMaskProc.getHeight(), minDist);
 
@@ -675,6 +686,37 @@ public class Mask_Instant_Comparator implements PlugIn {
             for (int testIndex = 0; testIndex < testRois.length; testIndex++) {
                 Roi testRoi = testRois[testIndex];
                 double overlap = compare2Rois(truthRoi, testRoi);
+                //IJ.log("truth: "+truthIndex+"\t test: "+testIndex+"\t overlap: "+overlap);
+                if (overlap > 0 && overlapPercent[truthIndex] < overlap) {
+                    int checkAlreadyExistingIndex = findIndexOf(correspondance, testIndex);
+                    if (checkAlreadyExistingIndex == -1) {
+                        correspondance[truthIndex] = testIndex;
+                        overlapPercent[truthIndex] = overlap;
+                    } else {
+                        //IJ.log("exist already: "+checkAlreadyExistingIndex+" with overlap:"+overlapPercent[checkAlreadyExistingIndex]);
+                        if (overlap > overlapPercent[checkAlreadyExistingIndex]) {
+                            correspondance[truthIndex] = testIndex;
+                            overlapPercent[truthIndex] = overlap;
+                            correspondance[checkAlreadyExistingIndex] = -1;
+                            overlapPercent[checkAlreadyExistingIndex] = -1;
+                        }
+                    }
+                }
+            }
+        }
+
+    }
+
+    private void objectAssignationLabel(int truthSize, int testSize, IoUAnalysis analysis,int [] correspondance, double[] overlapPercent) {
+        Arrays.fill(correspondance, -1);
+        Arrays.fill(overlapPercent, -1);
+        ImageProcessor iou = analysis.getIoU();
+
+        for (int truthIndex = 0; truthIndex < truthSize; truthIndex++) {
+            //Roi truthRoi = truthRois[truthIndex];
+            for (int testIndex = 0; testIndex < testSize; testIndex++) {
+                //Roi testRoi = testRois[testIndex];
+                double overlap = iou.getValue(truthIndex + 1, testIndex + 1);
                 //IJ.log("truth: "+truthIndex+"\t test: "+testIndex+"\t overlap: "+overlap);
                 if (overlap > 0 && overlapPercent[truthIndex] < overlap) {
                     int checkAlreadyExistingIndex = findIndexOf(correspondance, testIndex);
